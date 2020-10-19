@@ -1396,7 +1396,7 @@ static int __iface_cmdq_write_relaxed(struct venus_hfi_device *device,
 		void *pkt, bool *requires_interrupt, u32 sid)
 {
 	struct vidc_iface_q_info *q_info;
-	struct vidc_hal_cmd_pkt_hdr *cmd_packet;
+	struct vidc_hal_cmd_pkt_hdr *cmd_packet = NULL;
 	int result = -E2BIG;
 
 	if (!device || !pkt) {
@@ -2776,6 +2776,7 @@ static int venus_hfi_session_process_batch(void *sess,
 	struct hal_session *session = sess;
 	struct venus_hfi_device *device = &venus_hfi_dev;
 	struct hfi_cmd_session_sync_process_packet pkt;
+	bool is_last_frame = false;
 
 	mutex_lock(&device->lock);
 
@@ -2785,7 +2786,8 @@ static int venus_hfi_session_process_batch(void *sess,
 	}
 
 	for (c = 0; c < num_ftbs; ++c) {
-		rc = __session_ftb(session, &ftbs[c], true);
+		is_last_frame = (c + 1 == num_ftbs);
+		rc = __session_ftb(session, &ftbs[c], !is_last_frame);
 		if (rc) {
 			s_vpr_e(session->sid,
 				"Failed to queue batched ftb: %d\n", rc);
@@ -2794,7 +2796,8 @@ static int venus_hfi_session_process_batch(void *sess,
 	}
 
 	for (c = 0; c < num_etbs; ++c) {
-		rc = __session_etb(session, &etbs[c], true);
+		is_last_frame = (c + 1 == num_etbs);
+		rc = __session_etb(session, &etbs[c], !is_last_frame);
 		if (rc) {
 			s_vpr_e(session->sid,
 				"Failed to queue batched etb: %d\n", rc);
