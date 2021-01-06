@@ -2550,8 +2550,8 @@ static struct msm_vidc_common_data sm6150_common_data[] = {
 };
 
 static struct msm_vidc_efuse_data yupik_efuse_data[] = {
-	/* IRIS_4K60_FMAX_LIMIT_EFUSE - max 4K@60 */
-	EFUSE_ENTRY(0x007801E8, 4, 0x00004000, 0x0E, SKU_VERSION),
+	/* IRIS_PLL_FMAX - max 4K@30 */
+	EFUSE_ENTRY(0x007801E8, 4, 0x00200000, 0x15, SKU_VERSION),
 };
 
 static struct msm_vidc_common_data direwolf_common_data[] = {
