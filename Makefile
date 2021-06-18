@@ -44,6 +44,13 @@ ifeq (y, $(findstring y, $(CONFIG_ARCH_SM8150) $(CONFIG_ARCH_SA6155) $(CONFIG_AR
 LINUXINCLUDE    += -include $(srctree)/techpack/video/config/gen3autovidconf.h
 endif
 
+ifeq ($(CONFIG_ARCH_SCUBA), y)
+include $(srctree)/techpack/video/config/scubavid.conf
+endif
+
+ifeq ($(CONFIG_ARCH_SCUBA), y)
+LINUXINCLUDE    += -include $(srctree)/techpack/video/config/scubavidconf.h
+endif
 
 LINUXINCLUDE    += -I$(srctree)/techpack/video/include \
                    -I$(srctree)/techpack/video/include/uapi
