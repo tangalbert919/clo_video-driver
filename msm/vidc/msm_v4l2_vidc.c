@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -17,6 +17,8 @@
 #include <soc/qcom/boot_stats.h>
 
 #define BASE_DEVICE_NUMBER 32
+#define VIDC_CORE_STATE_CHNG_WAIT_MAX_RETRY 300
+#define VIDC_CORE_STATE_CHNG_WAIT_SLEEP_IN_MS 20
 
 struct msm_vidc_drv *vidc_driver;
 
@@ -704,6 +706,65 @@ static int msm_vidc_remove(struct platform_device *pdev)
 	return rc;
 }
 
+int msm_vidc_freeze_core(struct msm_vidc_core *core)
+{
+	int rc = 0;
+	int max_retry = 0;
+	struct hfi_device *hdev = NULL;
+	struct msm_vidc_ssr *ssr = NULL;
+
+	hdev = core->device;
+	ssr  = &core->ssr;
+
+	mutex_lock(&core->lock);
+	d_vpr_e("%s: SSR intended to deinit vidc\n", __func__);
+
+	ssr->ssr_type 	= (SSR_ERR_FATAL & (unsigned long)SSR_TYPE) >> SSR_TYPE_SHIFT;
+	ssr->sub_client_id = (SSR_ERR_FATAL & (unsigned long)SSR_SUB_CLIENT_ID) >> SSR_SUB_CLIENT_ID_SHIFT;
+	ssr->test_addr 	= (SSR_ERR_FATAL & (unsigned long)SSR_ADDR_ID) >> SSR_ADDR_SHIFT;
+
+	if (core->state == VIDC_CORE_INIT_DONE) {
+		d_vpr_e("%s: ssr type %d\n", __func__, ssr->ssr_type);
+		/*
+		 * In current implementation user-initiated SSR triggers
+		 * a fatal error from hardware. However, there is no way
+		 * to know if fatal error is due to SSR or not. Handle
+		 * user SSR as non-fatal.
+		 */
+		core->trigger_ssr = true;
+		rc = call_hfi_op(hdev, core_trigger_ssr,
+				hdev->hfi_device_data, ssr->ssr_type,
+				ssr->sub_client_id, ssr->test_addr);
+		if (rc) {
+			d_vpr_e("%s: trigger_ssr failed\n", __func__);
+			core->trigger_ssr = false;
+		}
+	} else {
+		d_vpr_e("%s: video core not initialized\n", __func__);
+	}
+	mutex_unlock(&core->lock);
+
+	/* Video core uninitialization may take some time after
+	 * triggering SSR. Wait for a while and check the core
+	 * state.
+	*/
+	while ((core->state != VIDC_CORE_UNINIT) && (max_retry < VIDC_CORE_STATE_CHNG_WAIT_MAX_RETRY)) {
+		msleep(VIDC_CORE_STATE_CHNG_WAIT_SLEEP_IN_MS);
+		max_retry++;
+	}
+
+	if (core->state == VIDC_CORE_UNINIT)
+	{
+		d_vpr_e("%s: video core uninitialized\n", __func__);
+	}
+
+	mutex_lock(&core->lock);
+	core->trigger_ssr = false;
+	mutex_unlock(&core->lock);
+
+	return rc;
+}
+
 static int msm_vidc_pm_suspend(struct device *dev)
 {
 	int rc = 0;
@@ -737,12 +798,42 @@ static int msm_vidc_pm_suspend(struct device *dev)
 
 static int msm_vidc_pm_resume(struct device *dev)
 {
+	place_marker("vidc resumed");
 	d_vpr_h("%s\n", __func__);
 	return 0;
 }
 
+static int msm_vidc_pm_freeze(struct device *dev)
+{
+	int rc = 0;
+	struct msm_vidc_core *core = NULL;
+
+	if (!dev || !dev->driver)
+		return 0;
+
+	core = dev_get_drvdata(dev);
+	if (!core)
+		return 0;
+
+	/* Bail out if device is not the main device.
+	 * Suspend/Freeze not supported for subdevices (context banks)
+	*/
+	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc")) {
+		place_marker("vidc hibernation start");
+
+		rc = msm_vidc_freeze_core(core);
+
+		place_marker("vidc hibernation end");
+	}
+	d_vpr_h("%s: done\n", __func__);
+
+	return rc;
+}
+
 static const struct dev_pm_ops msm_vidc_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(msm_vidc_pm_suspend, msm_vidc_pm_resume)
+	.suspend = msm_vidc_pm_suspend,
+	.resume  = msm_vidc_pm_resume,
+	.freeze  = msm_vidc_pm_freeze,
 };
 
 MODULE_DEVICE_TABLE(of, msm_vidc_dt_match);
