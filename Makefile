@@ -24,6 +24,15 @@ endif
 ifeq ($(CONFIG_ARCH_LITO), y)
 LINUXINCLUDE    += -include $(srctree)/techpack/video/config/litovidconf.h
 endif
+
+# auto-detect subdirs
+ifeq ($(CONFIG_ARCH_DIREWOLF), y)
+include $(srctree)/techpack/video/config/gen4autovid.conf
+endif
+
+ifeq ($(CONFIG_ARCH_DIREWOLF), y)
+LINUXINCLUDE    += -include $(srctree)/techpack/video/config/gen4autovidconf.h
+endif
 endif
 
 # auto-detect subdirs
