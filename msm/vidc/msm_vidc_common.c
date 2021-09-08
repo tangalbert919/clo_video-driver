@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <soc/qcom/subsystem_restart.h>
@@ -30,12 +30,6 @@ static void msm_vidc_print_running_insts(struct msm_vidc_core *core);
 
 #define V4L2_VP9_LEVEL_61 V4L2_MPEG_VIDC_VIDEO_VP9_LEVEL_61
 #define TIMESTAMPS_WINDOW_SIZE 32
-#define SSR_TYPE 0x0000000F
-#define SSR_TYPE_SHIFT 0
-#define SSR_SUB_CLIENT_ID 0x000000F0
-#define SSR_SUB_CLIENT_ID_SHIFT 4
-#define SSR_ADDR_ID 0xFFFFFFFF00000000
-#define SSR_ADDR_SHIFT 32
 
 int msm_comm_g_ctrl_for_id(struct msm_vidc_inst *inst, int id)
 {

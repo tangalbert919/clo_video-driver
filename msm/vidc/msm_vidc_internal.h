@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_INTERNAL_H_
@@ -60,6 +60,13 @@
 #define SESSION_MSG_END HAL_SESSION_ERROR
 #define SYS_MSG_INDEX(__msg) (__msg - SYS_MSG_START)
 #define SESSION_MSG_INDEX(__msg) (__msg - SESSION_MSG_START)
+
+#define SSR_TYPE 0x0000000F
+#define SSR_TYPE_SHIFT 0
+#define SSR_SUB_CLIENT_ID 0x000000F0
+#define SSR_SUB_CLIENT_ID_SHIFT 4
+#define SSR_ADDR_ID 0xFFFFFFFF00000000
+#define SSR_ADDR_SHIFT 32
 
 #define MAX_NAME_LENGTH 64
 
@@ -607,6 +614,7 @@ struct msm_vidc_ctrl {
 void handle_cmd_response(enum hal_command_response cmd, void *data);
 int msm_vidc_trigger_ssr(struct msm_vidc_core *core,
 	u64 trigger_ssr_val);
+int msm_vidc_freeze_core(struct msm_vidc_core *core);
 int msm_vidc_noc_error_info(struct msm_vidc_core *core);
 int msm_vidc_check_session_supported(struct msm_vidc_inst *inst);
 int msm_vidc_check_scaling_supported(struct msm_vidc_inst *inst);
