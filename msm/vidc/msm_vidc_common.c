@@ -7865,11 +7865,17 @@ u32 msm_comm_calc_framerate(struct msm_vidc_inst *inst,
 	}
 	interval = (u32)(timestamp_us - prev_ts);
 	framerate = (1000000 + interval / 2) / interval;
-	if (framerate > capability->cap[CAP_FRAMERATE].max)
-		framerate = capability->cap[CAP_FRAMERATE].max;
+	if (framerate > capability->cap[CAP_FRAMERATE].max) {
+		s_vpr_h(inst->sid, "%s: invalid ts %lld, prev ts %lld fps:%u\n",
+			__func__, timestamp_us, prev_ts, framerate);
+		framerate = INVALID_FPS;
+	}
 	if (framerate < 1)
 		framerate = 1;
-	return framerate << 16;
+	if (framerate != INVALID_FPS)
+		framerate <<= 16;
+
+	return framerate;
 }
 
 u32 msm_comm_get_max_framerate(struct msm_vidc_inst *inst)
@@ -7885,8 +7891,13 @@ u32 msm_comm_get_max_framerate(struct msm_vidc_inst *inst)
 
 	mutex_lock(&inst->timestamps.lock);
 	list_for_each_entry(node, &inst->timestamps.list, list) {
-		count++;
-		avg_framerate += node->framerate;
+		if (node->framerate != INVALID_FPS) {
+			count++;
+			avg_framerate += node->framerate;
+			s_vpr_l(inst->sid, "%s: cnt:%d fps %u\n", __func__, count, node->framerate);
+		} else {
+			s_vpr_h(inst->sid, "%s: cnt:%d fps is invalid\n", __func__, count);
+		}
 	}
 	avg_framerate = count ? (avg_framerate / count) : (1 << 16);
 
