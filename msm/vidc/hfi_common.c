@@ -1396,7 +1396,7 @@ static int __iface_cmdq_write_relaxed(struct venus_hfi_device *device,
 		void *pkt, bool *requires_interrupt, u32 sid)
 {
 	struct vidc_iface_q_info *q_info;
-	struct vidc_hal_cmd_pkt_hdr *cmd_packet;
+	struct vidc_hal_cmd_pkt_hdr *cmd_packet = NULL;
 	int result = -E2BIG;
 
 	if (!device || !pkt) {
