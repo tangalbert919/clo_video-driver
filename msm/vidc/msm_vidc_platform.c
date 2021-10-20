@@ -1775,7 +1775,7 @@ static struct msm_vidc_common_data sm8150_common_data[] = {
 	},
 	{
 		.key = "qcom,cvp-internal",
-		.value = 1,
+		.value = 0,
 	},
 	{
 		.key = "qcom,decode-batching",
@@ -1823,6 +1823,10 @@ static struct msm_vidc_common_data sm8150_common_data[] = {
 		 * Calculated by VENUS_BUFFER_SIZE for 4096x2160 UBWC
 		 */
 		.value = 13434880,
+	},
+	{
+		.key = "qcom,no-cvp",
+		.value = 1,
 	},
 };
 
