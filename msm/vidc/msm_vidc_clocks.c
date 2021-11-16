@@ -1854,21 +1854,26 @@ int msm_vidc_decide_core_and_power_mode_iris1(struct msm_vidc_inst *inst)
 	}
 
 	/* Power saving always disabled for HEIF image sessions */
-	if (is_image_session(inst))
-		msm_vidc_power_save_mode_enable(inst, false);
-	else if (cur_inst_load + core_load <= max_freq) {
-		if (mbpf > max_hq_mbpf || mbps > max_hq_mbps)
-			enable = true;
-		msm_vidc_power_save_mode_enable(inst, enable);
-	} else if (cur_inst_lp_load + core_load <= max_freq) {
-		msm_vidc_power_save_mode_enable(inst, true);
-	} else if (cur_inst_lp_load + core_lp_load <= max_freq) {
-		s_vpr_h(inst->sid, "Moved all inst's to LP");
-		msm_vidc_move_core_to_power_save_mode(core,
-			VIDC_CORE_ID_1, inst->sid);
-	} else {
-		s_vpr_e(inst->sid, "Core cannot support this load\n");
-		return -EINVAL;
+	/* Power save mode is enabled only for encoder
+	 * Do not call power save mode enable function for decoder
+	*/
+	if (inst->session_type == MSM_VIDC_ENCODER) {
+		if (is_image_session(inst))
+			msm_vidc_power_save_mode_enable(inst, false);
+		else if (cur_inst_load + core_load <= max_freq) {
+			if (mbpf > max_hq_mbpf || mbps > max_hq_mbps)
+				enable = true;
+			msm_vidc_power_save_mode_enable(inst, enable);
+		} else if (cur_inst_lp_load + core_load <= max_freq) {
+			msm_vidc_power_save_mode_enable(inst, true);
+		} else if (cur_inst_lp_load + core_lp_load <= max_freq) {
+			s_vpr_h(inst->sid, "Moved all inst's to LP");
+			msm_vidc_move_core_to_power_save_mode(core,
+				VIDC_CORE_ID_1, inst->sid);
+		} else {
+			s_vpr_e(inst->sid, "Core cannot support this load\n");
+			return -EINVAL;
+		}
 	}
 
 	inst->clk_data.core_id = VIDC_CORE_ID_1;
