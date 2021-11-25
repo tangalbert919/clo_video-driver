@@ -35,6 +35,14 @@ ifeq (y, $(findstring y, $(CONFIG_ARCH_SM8150) $(CONFIG_ARCH_SA6155) $(CONFIG_AR
 LINUXINCLUDE    += -include $(srctree)/techpack/video/config/gen3autovidconf.h
 endif
 
+# auto-detect subdirs
+ifeq ($(CONFIG_ARCH_SM6150), y)
+include $(srctree)/techpack/video/config/sm6150vid.conf
+endif
+
+ifeq ($(CONFIG_ARCH_SM6150), y)
+LINUXINCLUDE    += -include $(srctree)/techpack/video/config/sm6150vidconf.h
+endif
 
 LINUXINCLUDE    += -I$(srctree)/techpack/video/include \
                    -I$(srctree)/techpack/video/include/uapi
