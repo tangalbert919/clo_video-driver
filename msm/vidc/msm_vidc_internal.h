@@ -31,6 +31,7 @@
 #define MIN_SUPPORTED_WIDTH 32
 #define MIN_SUPPORTED_HEIGHT 32
 #define DEFAULT_FPS 30
+#define INVALID_FPS 0xFFFFFFFF
 #define MINIMUM_FPS 1
 #define MAXIMUM_FPS 960
 #define SINGLE_INPUT_BUFFER 1
@@ -39,6 +40,7 @@
 #define MAX_NUM_OUTPUT_BUFFERS VIDEO_MAX_FRAME // same as VB2_MAX_FRAME
 
 #define MAX_SUPPORTED_INSTANCES 16
+#define MAX_SUPPORTED_INSTANCES_24 24
 #define MAX_BSE_VPP_DELAY 6
 #define DEFAULT_BSE_VPP_DELAY 2
 
@@ -236,6 +238,11 @@ struct msm_vidc_codec_capability {
 	u32 default_value;
 };
 
+struct msm_vidc_vpss_capability {
+	u32 width;
+	u32 height;
+};
+
 struct msm_vidc_codec {
 	enum hal_domain domain;
 	enum hal_video_codec codec;
@@ -303,6 +310,8 @@ struct msm_vidc_platform_data {
 	uint32_t codecs_count;
 	struct msm_vidc_codec_capability *codec_caps;
 	uint32_t codec_caps_count;
+	struct msm_vidc_vpss_capability *vpss_caps;
+	uint32_t vpss_caps_count;
 	struct msm_vidc_csc_coeff csc_data;
 	struct msm_vidc_efuse_data *efuse_data;
 	unsigned int efuse_data_length;
@@ -310,6 +319,7 @@ struct msm_vidc_platform_data {
 	uint32_t vpu_ver;
 	uint32_t num_vpp_pipes;
 	struct msm_vidc_ubwc_config_data *ubwc_config;
+	uint32_t max_inst_count;
 };
 
 struct msm_vidc_format_desc {
@@ -336,6 +346,13 @@ struct msm_vidc_format_constraint {
 	u32 uv_buffer_alignment;
 };
 
+struct log_cookie {
+	u32 used;
+	u32 session_type;
+	u32 codec_type;
+	char name[20];
+};
+
 struct msm_vidc_drv {
 	struct mutex lock;
 	struct list_head cores;
@@ -343,6 +360,8 @@ struct msm_vidc_drv {
 	struct dentry *debugfs_root;
 	int thermal_level;
 	u32 sku_version;
+	struct log_cookie *ctxt;
+	u32 num_ctxt;
 };
 
 struct msm_video_device {
@@ -572,6 +591,7 @@ struct msm_vidc_inst {
 	bool external_blur;
 	struct internal_buf *dpb_extra_binfo;
 	struct msm_vidc_codec_data *codec_data;
+	bool hdr10_sei_enabled;
 	struct hal_hdr10_pq_sei hdr10_sei_params;
 	struct batch_mode batch;
 	struct delayed_work batch_work;
