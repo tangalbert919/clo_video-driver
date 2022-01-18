@@ -1322,8 +1322,20 @@ static int wait_for_sess_signal_receipt(struct msm_vidc_inst *inst,
 		msecs_to_jiffies(
 			inst->core->resources.msm_vidc_hw_rsp_timeout));
 	if (!rc) {
-		s_vpr_e(inst->sid, "Wait interrupted or timed out: %d\n",
+		s_vpr_e(inst->sid, "Wait interrupted or timed out(sending ping cmd): %d\n",
 				SESSION_MSG_INDEX(cmd));
+		rc = call_hfi_op(hdev, core_ping, hdev->hfi_device_data, inst->sid);
+		rc = wait_for_completion_timeout(
+				&inst->core->completions[SYS_MSG_INDEX(HAL_SYS_PING_ACK)],
+				msecs_to_jiffies(
+				inst->core->resources.msm_vidc_hw_rsp_timeout));
+		if (rc) {
+			if (try_wait_for_completion(&inst->completions[SESSION_MSG_INDEX(cmd)])) {
+				s_vpr_e(inst->sid, "Received %d response. Continue session\n",
+								SESSION_MSG_INDEX(cmd));
+				return 0;
+			}
+		}
 		msm_comm_kill_session(inst);
 		rc = -EIO;
 	} else {
@@ -1973,6 +1985,28 @@ static void handle_stop_done(enum hal_command_response cmd, void *data)
 
 	s_vpr_l(inst->sid, "handled: SESSION_STOP_DONE\n");
 	signal_session_msg_receipt(cmd, inst);
+	put_inst(inst);
+}
+
+static void handle_ping_done(enum hal_command_response cmd, void *data)
+{
+	struct msm_vidc_cb_cmd_done *response = data;
+	struct msm_vidc_inst *inst;
+
+	if (!response) {
+		d_vpr_e("Failed to get valid response for stop\n");
+		return;
+	}
+
+	inst = get_inst(get_vidc_core(response->device_id),
+			response->inst_id);
+	if (!inst) {
+		d_vpr_e("Got a response for an inactive session\n");
+		return;
+	}
+
+	s_vpr_l(inst->sid, "handled: SYS_PING_DONE\n");
+	complete(&inst->core->completions[SYS_MSG_INDEX(HAL_SYS_PING_ACK)]);
 	put_inst(inst);
 }
 
@@ -2804,6 +2838,9 @@ void handle_cmd_response(enum hal_command_response cmd, void *data)
 	case HAL_SESSION_ABORT_DONE:
 		handle_session_close(cmd, data);
 		break;
+	case HAL_SYS_PING_ACK:
+		handle_ping_done(cmd, data);
+		break;
 	case HAL_SESSION_EVENT_CHANGE:
 		handle_event_change(cmd, data);
 		break;
@@ -3096,7 +3133,6 @@ static int msm_comm_init_core(struct msm_vidc_inst *inst)
 	core->state = VIDC_CORE_INIT;
 	core->smmu_fault_handled = false;
 	core->trigger_ssr = false;
-	core->resources.max_inst_count = MAX_SUPPORTED_INSTANCES;
 	core->resources.max_secure_inst_count =
 		core->resources.max_secure_inst_count ?
 		core->resources.max_secure_inst_count :
@@ -5239,6 +5275,7 @@ static enum hal_buffer scratch_buf_sufficient(struct msm_vidc_inst *inst,
 
 	list_for_each_entry(buf, &inst->scratchbufs.list, list) {
 		if (buf->buffer_type == buffer_type &&
+			bufreq->buffer_size &&
 			buf->smem.size >= bufreq->buffer_size)
 			count++;
 	}
@@ -6256,10 +6293,12 @@ int msm_vidc_check_session_supported(struct msm_vidc_inst *inst)
 				width_min, height_min);
 			rc = -ENOTSUPP;
 		}
-		if (!rc && output_width > width_max) {
+		if (!rc && (output_width > width_max ||
+				output_height > height_max)) {
 			s_vpr_e(sid,
-				"Unsupported width = %u supported max width = %u\n",
-				output_width, width_max);
+				"Unsupported WxH (%u)x(%u), max supported is (%u)x(%u)\n",
+				output_width, output_height,
+				width_max, height_max);
 				rc = -ENOTSUPP;
 		}
 
@@ -6472,6 +6511,7 @@ void msm_comm_print_inst_info(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_buffer *mbuf;
 	struct msm_vidc_cvp_buffer *cbuf;
+	struct dma_buf *dbuf;
 	struct internal_buf *buf;
 	bool is_decode = false;
 	enum vidc_ports port;
@@ -6505,26 +6545,35 @@ void msm_comm_print_inst_info(struct msm_vidc_inst *inst)
 
 	mutex_lock(&inst->scratchbufs.lock);
 	s_vpr_e(inst->sid, "scratch buffer list:\n");
-	list_for_each_entry(buf, &inst->scratchbufs.list, list)
-		s_vpr_e(inst->sid, "type: %d addr: %x size: %u\n",
-				buf->buffer_type, buf->smem.device_addr,
-				buf->smem.size);
+	list_for_each_entry(buf, &inst->scratchbufs.list, list) {
+		dbuf = (struct dma_buf *)buf->smem.dma_buf;
+		s_vpr_e(inst->sid, "type: %d addr: %x size: %u inode: %lu ref: %ld\n",
+				buf->buffer_type, buf->smem.device_addr, buf->smem.size,
+				(dbuf ? file_inode(dbuf->file)->i_ino : -1),
+				(dbuf ? file_count(dbuf->file) : -1));
+	}
 	mutex_unlock(&inst->scratchbufs.lock);
 
 	mutex_lock(&inst->persistbufs.lock);
 	s_vpr_e(inst->sid, "persist buffer list:\n");
-	list_for_each_entry(buf, &inst->persistbufs.list, list)
-		s_vpr_e(inst->sid, "type: %d addr: %x size: %u\n",
-				buf->buffer_type, buf->smem.device_addr,
-				buf->smem.size);
+	list_for_each_entry(buf, &inst->persistbufs.list, list) {
+		dbuf = (struct dma_buf *)buf->smem.dma_buf;
+		s_vpr_e(inst->sid, "type: %d addr: %x size: %u inode: %lu ref: %ld\n",
+				buf->buffer_type, buf->smem.device_addr, buf->smem.size,
+				(dbuf ? file_inode(dbuf->file)->i_ino : -1),
+				(dbuf ? file_count(dbuf->file) : -1));
+	}
 	mutex_unlock(&inst->persistbufs.lock);
 
 	mutex_lock(&inst->outputbufs.lock);
 	s_vpr_e(inst->sid, "dpb buffer list:\n");
-	list_for_each_entry(buf, &inst->outputbufs.list, list)
-		s_vpr_e(inst->sid, "type: %d addr: %x size: %u\n",
-				buf->buffer_type, buf->smem.device_addr,
-				buf->smem.size);
+	list_for_each_entry(buf, &inst->outputbufs.list, list) {
+		dbuf = (struct dma_buf *)buf->smem.dma_buf;
+		s_vpr_e(inst->sid, "type: %d addr: %x size: %u inode: %lu ref: %ld\n",
+				buf->buffer_type, buf->smem.device_addr, buf->smem.size,
+				(dbuf ? file_inode(dbuf->file)->i_ino : -1),
+				(dbuf ? file_count(dbuf->file) : -1));
+	}
 	mutex_unlock(&inst->outputbufs.lock);
 
 	mutex_lock(&inst->cvpbufs.lock);
@@ -6608,34 +6657,43 @@ void print_vidc_buffer(u32 tag, const char *str, struct msm_vidc_inst *inst,
 		struct msm_vidc_buffer *mbuf)
 {
 	struct vb2_buffer *vb2 = NULL;
+	struct dma_buf *dbuf[2];
 
 	if (!(tag & msm_vidc_debug) || !inst || !mbuf)
 		return;
 
 	vb2 = &mbuf->vvb.vb2_buf;
+	dbuf[0] = (struct dma_buf *)mbuf->smem[0].dma_buf;
+	dbuf[1] = (struct dma_buf *)mbuf->smem[1].dma_buf;
 
 	if (vb2->num_planes == 1)
 		dprintk(tag, inst->sid,
-			"%s: %s: idx %2d fd %d off %d daddr %x size %d filled %d flags 0x%x ts %lld refcnt %d mflags 0x%x\n",
+			"%s: %s: idx %2d fd %d off %d daddr %x inode %lu ref %ld size %d filled %d flags 0x%x ts %lld refcnt %d mflags 0x%x\n",
 			str, vb2->type == INPUT_MPLANE ?
 			"OUTPUT" : "CAPTURE",
 			vb2->index, vb2->planes[0].m.fd,
 			vb2->planes[0].data_offset, mbuf->smem[0].device_addr,
+			(dbuf[0] ? file_inode(dbuf[0]->file)->i_ino : -1),
+			(dbuf[0] ? file_count(dbuf[0]->file) : -1),
 			vb2->planes[0].length, vb2->planes[0].bytesused,
 			mbuf->vvb.flags, mbuf->vvb.vb2_buf.timestamp,
 			mbuf->smem[0].refcount, mbuf->flags);
 	else
 		dprintk(tag, inst->sid,
-			"%s: %s: idx %2d fd %d off %d daddr %x size %d filled %d flags 0x%x ts %lld refcnt %d mflags 0x%x, extradata: fd %d off %d daddr %x size %d filled %d refcnt %d\n",
+			"%s: %s: idx %2d fd %d off %d daddr %x inode %lu ref %ld size %d filled %d flags 0x%x ts %lld refcnt %d mflags 0x%x, extradata: fd %d off %d daddr %x inode %lu ref %ld size %d filled %d refcnt %d\n",
 			str, vb2->type == INPUT_MPLANE ?
 			"OUTPUT" : "CAPTURE",
 			vb2->index, vb2->planes[0].m.fd,
 			vb2->planes[0].data_offset, mbuf->smem[0].device_addr,
+			(dbuf[0] ? file_inode(dbuf[0]->file)->i_ino : -1),
+			(dbuf[0] ? file_count(dbuf[0]->file) : -1),
 			vb2->planes[0].length, vb2->planes[0].bytesused,
 			mbuf->vvb.flags, mbuf->vvb.vb2_buf.timestamp,
 			mbuf->smem[0].refcount, mbuf->flags,
 			vb2->planes[1].m.fd, vb2->planes[1].data_offset,
-			mbuf->smem[1].device_addr, vb2->planes[1].length,
+			mbuf->smem[1].device_addr,
+			(dbuf[1] ? file_inode(dbuf[1]->file)->i_ino : -1),
+			(dbuf[1] ? file_count(dbuf[1]->file) : -1), vb2->planes[1].length,
 			vb2->planes[1].bytesused, mbuf->smem[1].refcount);
 }
 
@@ -7865,11 +7923,17 @@ u32 msm_comm_calc_framerate(struct msm_vidc_inst *inst,
 	}
 	interval = (u32)(timestamp_us - prev_ts);
 	framerate = (1000000 + interval / 2) / interval;
-	if (framerate > capability->cap[CAP_FRAMERATE].max)
-		framerate = capability->cap[CAP_FRAMERATE].max;
+	if (framerate > capability->cap[CAP_FRAMERATE].max) {
+		s_vpr_h(inst->sid, "%s: invalid ts %lld, prev ts %lld fps:%u\n",
+			__func__, timestamp_us, prev_ts, framerate);
+		framerate = INVALID_FPS;
+	}
 	if (framerate < 1)
 		framerate = 1;
-	return framerate << 16;
+	if (framerate != INVALID_FPS)
+		framerate <<= 16;
+
+	return framerate;
 }
 
 u32 msm_comm_get_max_framerate(struct msm_vidc_inst *inst)
@@ -7885,10 +7949,15 @@ u32 msm_comm_get_max_framerate(struct msm_vidc_inst *inst)
 
 	mutex_lock(&inst->timestamps.lock);
 	list_for_each_entry(node, &inst->timestamps.list, list) {
-		count++;
-		avg_framerate += node->framerate;
+		if (node->framerate != INVALID_FPS) {
+			count++;
+			avg_framerate += node->framerate;
+			s_vpr_l(inst->sid, "%s: cnt:%d fps %u\n", __func__, count, node->framerate);
+		} else {
+			s_vpr_h(inst->sid, "%s: cnt:%d fps is invalid\n", __func__, count);
+		}
 	}
-	avg_framerate = count ? (avg_framerate / count) : (1 << 16);
+	avg_framerate = count ? (div_u64(avg_framerate, count)) : (1 << 16);
 
 	s_vpr_l(inst->sid, "%s: fps %u, list size %d\n", __func__, avg_framerate, count);
 	mutex_unlock(&inst->timestamps.lock);
@@ -7902,6 +7971,8 @@ int msm_comm_fetch_ts_framerate(struct msm_vidc_inst *inst,
 	int rc = 0;
 	bool invalidate_extra = false;
 	u32 input_tag = 0, input_tag2 = 0;
+	s32 factor = 1000000;
+	s32 remainder = 0;
 
 	if (!inst || !b) {
 		d_vpr_e("%s: invalid parameters\n", __func__);
@@ -7937,8 +8008,8 @@ int msm_comm_fetch_ts_framerate(struct msm_vidc_inst *inst,
 		if (!(b->flags & V4L2_BUF_FLAG_END_OF_SUBFRAME))
 			node->is_valid = false;
 
-		b->timestamp.tv_sec = node->timestamp_us / 1000000;
-		b->timestamp.tv_usec = node->timestamp_us % 1000000;
+		b->timestamp.tv_sec = div_s64_rem(node->timestamp_us, factor, &remainder);
+		b->timestamp.tv_usec = remainder;
 		b->m.planes[0].reserved[MSM_VIDC_FRAMERATE] = node->framerate;
 		break;
 	}
