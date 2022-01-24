@@ -2219,6 +2219,7 @@ void *vidc_get_drv_data(struct device *dev)
 		d_vpr_h("DDR Type 0x%x hbb 0x%x\n",
 			ddr_type, driver_data->ubwc_config ?
 			driver_data->ubwc_config->highest_bank_bit : -1);
+		driver_data->max_inst_count = MAX_SUPPORTED_INSTANCES_24;
 	} else if (!strcmp(match->compatible, "qcom,qcs8250-vidc")) {
 		ddr_type = of_fdt_get_ddrtype();
 		if (ddr_type == -ENOENT)
