@@ -1466,7 +1466,7 @@ static u32 vpe_csc_custom_limit_coeff[HAL_MAX_LIMIT_COEFFS] = {
 	16, 235, 16, 240, 16, 240
 };
 
-struct allowed_clock_rates_table yupik_clock_data_v1[] = {
+static struct allowed_clock_rates_table yupik_clock_data_v1[] = {
 	{133330000}, {240000000}, {335000000}, {380000000}
 };
 
