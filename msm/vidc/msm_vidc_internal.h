@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_INTERNAL_H_
@@ -31,14 +31,17 @@
 #define MIN_SUPPORTED_WIDTH 32
 #define MIN_SUPPORTED_HEIGHT 32
 #define DEFAULT_FPS 30
+#define INVALID_FPS 0xFFFFFFFF
 #define MINIMUM_FPS 1
 #define MAXIMUM_FPS 960
 #define SINGLE_INPUT_BUFFER 1
 #define SINGLE_OUTPUT_BUFFER 1
 #define MAX_NUM_INPUT_BUFFERS VIDEO_MAX_FRAME // same as VB2_MAX_FRAME
 #define MAX_NUM_OUTPUT_BUFFERS VIDEO_MAX_FRAME // same as VB2_MAX_FRAME
+#define NUM_MBS_UHD (((3840 + 15) >> 4) * ((2160 + 15) >> 4))
 
 #define MAX_SUPPORTED_INSTANCES 16
+#define MAX_SUPPORTED_INSTANCES_24 24
 #define MAX_BSE_VPP_DELAY 6
 #define DEFAULT_BSE_VPP_DELAY 2
 
@@ -60,6 +63,13 @@
 #define SESSION_MSG_END HAL_SESSION_ERROR
 #define SYS_MSG_INDEX(__msg) (__msg - SYS_MSG_START)
 #define SESSION_MSG_INDEX(__msg) (__msg - SESSION_MSG_START)
+
+#define SSR_TYPE 0x0000000F
+#define SSR_TYPE_SHIFT 0
+#define SSR_SUB_CLIENT_ID 0x000000F0
+#define SSR_SUB_CLIENT_ID_SHIFT 4
+#define SSR_ADDR_ID 0xFFFFFFFF00000000
+#define SSR_ADDR_SHIFT 32
 
 #define MAX_NAME_LENGTH 64
 
@@ -229,6 +239,11 @@ struct msm_vidc_codec_capability {
 	u32 default_value;
 };
 
+struct msm_vidc_vpss_capability {
+	u32 width;
+	u32 height;
+};
+
 struct msm_vidc_codec {
 	enum hal_domain domain;
 	enum hal_video_codec codec;
@@ -296,6 +311,8 @@ struct msm_vidc_platform_data {
 	uint32_t codecs_count;
 	struct msm_vidc_codec_capability *codec_caps;
 	uint32_t codec_caps_count;
+	struct msm_vidc_vpss_capability *vpss_caps;
+	uint32_t vpss_caps_count;
 	struct msm_vidc_csc_coeff csc_data;
 	struct msm_vidc_efuse_data *efuse_data;
 	unsigned int efuse_data_length;
@@ -303,6 +320,7 @@ struct msm_vidc_platform_data {
 	uint32_t vpu_ver;
 	uint32_t num_vpp_pipes;
 	struct msm_vidc_ubwc_config_data *ubwc_config;
+	uint32_t max_inst_count;
 };
 
 struct msm_vidc_format_desc {
@@ -329,6 +347,13 @@ struct msm_vidc_format_constraint {
 	u32 uv_buffer_alignment;
 };
 
+struct log_cookie {
+	u32 used;
+	u32 session_type;
+	u32 codec_type;
+	char name[20];
+};
+
 struct msm_vidc_drv {
 	struct mutex lock;
 	struct list_head cores;
@@ -336,6 +361,8 @@ struct msm_vidc_drv {
 	struct dentry *debugfs_root;
 	int thermal_level;
 	u32 sku_version;
+	struct log_cookie *ctxt;
+	u32 num_ctxt;
 };
 
 struct msm_video_device {
@@ -490,6 +517,7 @@ struct msm_vidc_core {
 	unsigned long min_freq;
 	unsigned long curr_freq;
 	struct msm_vidc_core_ops *core_ops;
+	bool pm_suspended;
 };
 
 struct msm_vidc_inst;
@@ -565,6 +593,7 @@ struct msm_vidc_inst {
 	bool external_blur;
 	struct internal_buf *dpb_extra_binfo;
 	struct msm_vidc_codec_data *codec_data;
+	bool hdr10_sei_enabled;
 	struct hal_hdr10_pq_sei hdr10_sei_params;
 	struct batch_mode batch;
 	struct delayed_work batch_work;
@@ -607,6 +636,7 @@ struct msm_vidc_ctrl {
 void handle_cmd_response(enum hal_command_response cmd, void *data);
 int msm_vidc_trigger_ssr(struct msm_vidc_core *core,
 	u64 trigger_ssr_val);
+int msm_vidc_freeze_core(struct msm_vidc_core *core);
 int msm_vidc_noc_error_info(struct msm_vidc_core *core);
 int msm_vidc_check_session_supported(struct msm_vidc_inst *inst);
 int msm_vidc_check_scaling_supported(struct msm_vidc_inst *inst);

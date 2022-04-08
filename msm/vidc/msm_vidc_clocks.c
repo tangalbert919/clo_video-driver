@@ -27,7 +27,7 @@ static unsigned long msm_vidc_calc_freq_iris1(struct msm_vidc_inst *inst,
 static unsigned long msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst,
 	u32 filled_len);
 
-struct msm_vidc_core_ops core_ops_ar50_lt = {
+static struct msm_vidc_core_ops core_ops_ar50_lt = {
 	.calc_freq = msm_vidc_calc_freq_ar50_lt,
 	.decide_work_route = NULL,
 	.decide_work_mode = msm_vidc_decide_work_mode_ar50_lt,
@@ -35,7 +35,7 @@ struct msm_vidc_core_ops core_ops_ar50_lt = {
 		msm_vidc_decide_core_and_power_mode_ar50lt,
 	.calc_bw = calc_bw_ar50lt,
 };
-struct msm_vidc_core_ops core_ops_ar50 = {
+static struct msm_vidc_core_ops core_ops_ar50 = {
 	.calc_freq = msm_vidc_calc_freq_ar50_lt,
 	.decide_work_route = NULL,
 	.decide_work_mode = msm_vidc_decide_work_mode_ar50_lt,
@@ -43,7 +43,7 @@ struct msm_vidc_core_ops core_ops_ar50 = {
 		msm_vidc_decide_core_and_power_mode_ar50lt,
 	.calc_bw = NULL,
 };
-struct msm_vidc_core_ops core_ops_iris1 = {
+static struct msm_vidc_core_ops core_ops_iris1 = {
 	.calc_freq = msm_vidc_calc_freq_iris1,
 	.decide_work_route = msm_vidc_decide_work_route_iris1,
 	.decide_work_mode = msm_vidc_decide_work_mode_iris1,
@@ -51,7 +51,7 @@ struct msm_vidc_core_ops core_ops_iris1 = {
 	.calc_bw = calc_bw_iris1,
 };
 
-struct msm_vidc_core_ops core_ops_iris2 = {
+static struct msm_vidc_core_ops core_ops_iris2 = {
 	.calc_freq = msm_vidc_calc_freq_iris2,
 	.decide_work_route = msm_vidc_decide_work_route_iris2,
 	.decide_work_mode = msm_vidc_decide_work_mode_iris2,
@@ -302,7 +302,7 @@ static int fill_dynamic_stats(struct msm_vidc_inst *inst,
 	return 0;
 }
 
-int msm_comm_set_buses(struct msm_vidc_core *core, u32 sid)
+static int msm_comm_set_buses(struct msm_vidc_core *core, u32 sid)
 {
 	int rc = 0;
 	struct msm_vidc_inst *inst = NULL;
@@ -551,7 +551,10 @@ static int msm_dcvs_scale_clocks(struct msm_vidc_inst *inst,
 	} else if ((dcvs->dcvs_flags & MSM_VIDC_DCVS_DECR &&
 		    bufs_with_fw >= dcvs->nom_threshold) ||
 		   (dcvs->dcvs_flags & MSM_VIDC_DCVS_INCR &&
-		    bufs_with_fw <= dcvs->nom_threshold))
+		    bufs_with_fw <= dcvs->nom_threshold) ||
+		   (inst->session_type == MSM_VIDC_ENCODER &&
+		    dcvs->dcvs_flags & MSM_VIDC_DCVS_DECR &&
+		    bufs_with_fw >= dcvs->min_threshold))
 		dcvs->dcvs_flags = 0;
 
 	s_vpr_p(inst->sid, "DCVS: bufs_with_fw %d Th[%d %d %d] Flag %#x\n",
@@ -1039,7 +1042,7 @@ int msm_vidc_set_clocks(struct msm_vidc_core *core, u32 sid)
 	return rc;
 }
 
-int msm_comm_scale_clocks(struct msm_vidc_inst *inst)
+static int msm_comm_scale_clocks(struct msm_vidc_inst *inst)
 {
 	struct msm_vidc_buffer *temp, *next;
 	unsigned long freq = 0;
@@ -1430,9 +1433,11 @@ static int msm_vidc_decide_work_mode_ar50_lt(struct msm_vidc_inst *inst)
 		return -EINVAL;
 	}
 
+	latency.enable = false;
 	hdev = inst->core->device;
 	if (inst->clk_data.low_latency_mode) {
 		pdata.video_work_mode = HFI_WORKMODE_1;
+		latency.enable = true;
 		goto decision_done;
 	}
 
@@ -1452,20 +1457,25 @@ static int msm_vidc_decide_work_mode_ar50_lt(struct msm_vidc_inst *inst)
 		}
 	} else if (inst->session_type == MSM_VIDC_ENCODER) {
 		pdata.video_work_mode = HFI_WORKMODE_1;
+		/* For WORK_MODE_1, set Low Latency mode by default */
+		latency.enable = true;
 		if (inst->rc_type == V4L2_MPEG_VIDEO_BITRATE_MODE_VBR ||
 				inst->rc_type ==
 					V4L2_MPEG_VIDEO_BITRATE_MODE_MBR ||
 				inst->rc_type ==
 					V4L2_MPEG_VIDEO_BITRATE_MODE_MBR_VFR ||
 				inst->rc_type ==
-					V4L2_MPEG_VIDEO_BITRATE_MODE_CQ)
+					V4L2_MPEG_VIDEO_BITRATE_MODE_CQ) {
 			pdata.video_work_mode = HFI_WORKMODE_2;
+			latency.enable = false;
+		}
 	} else {
 		return -EINVAL;
 	}
 
 decision_done:
-
+	s_vpr_h(inst->sid, "Configuring work mode = %u low latency = %u",
+			pdata.video_work_mode, latency.enable);
 	inst->clk_data.work_mode = pdata.video_work_mode;
 	rc = call_hfi_op(hdev, session_set_property,
 			(void *)inst->session, HFI_PROPERTY_PARAM_WORK_MODE,
@@ -1473,17 +1483,12 @@ decision_done:
 	if (rc)
 		s_vpr_e(inst->sid, "Failed to configure Work Mode\n");
 
-	/* For WORK_MODE_1, set Low Latency mode by default to HW. */
-
-	if (inst->session_type == MSM_VIDC_ENCODER &&
-			inst->clk_data.work_mode == HFI_WORKMODE_1) {
-		latency.enable = true;
+	if (inst->session_type == MSM_VIDC_ENCODER && latency.enable) {
 		rc = call_hfi_op(hdev, session_set_property,
 			(void *)inst->session,
 			HFI_PROPERTY_PARAM_VENC_LOW_LATENCY_MODE,
 			(void *)&latency, sizeof(latency));
 	}
-
 	rc = msm_comm_scale_clocks_and_bus(inst, 1);
 
 	return rc;
@@ -1668,8 +1673,7 @@ int msm_vidc_decide_work_mode_iris2(struct msm_vidc_inst *inst)
 	}
 
 	s_vpr_h(inst->sid, "Configuring work mode = %u low latency = %u",
-			pdata.video_work_mode,
-			latency.enable);
+			pdata.video_work_mode, latency.enable);
 
 	if (inst->session_type == MSM_VIDC_ENCODER) {
 		rc = call_hfi_op(hdev, session_set_property,
@@ -1850,21 +1854,26 @@ int msm_vidc_decide_core_and_power_mode_iris1(struct msm_vidc_inst *inst)
 	}
 
 	/* Power saving always disabled for HEIF image sessions */
-	if (is_image_session(inst))
-		msm_vidc_power_save_mode_enable(inst, false);
-	else if (cur_inst_load + core_load <= max_freq) {
-		if (mbpf > max_hq_mbpf || mbps > max_hq_mbps)
-			enable = true;
-		msm_vidc_power_save_mode_enable(inst, enable);
-	} else if (cur_inst_lp_load + core_load <= max_freq) {
-		msm_vidc_power_save_mode_enable(inst, true);
-	} else if (cur_inst_lp_load + core_lp_load <= max_freq) {
-		s_vpr_h(inst->sid, "Moved all inst's to LP");
-		msm_vidc_move_core_to_power_save_mode(core,
-			VIDC_CORE_ID_1, inst->sid);
-	} else {
-		s_vpr_e(inst->sid, "Core cannot support this load\n");
-		return -EINVAL;
+	/* Power save mode is enabled only for encoder
+	 * Do not call power save mode enable function for decoder
+	*/
+	if (inst->session_type == MSM_VIDC_ENCODER) {
+		if (is_image_session(inst))
+			msm_vidc_power_save_mode_enable(inst, false);
+		else if (cur_inst_load + core_load <= max_freq) {
+			if (mbpf > max_hq_mbpf || mbps > max_hq_mbps)
+				enable = true;
+			msm_vidc_power_save_mode_enable(inst, enable);
+		} else if (cur_inst_lp_load + core_load <= max_freq) {
+			msm_vidc_power_save_mode_enable(inst, true);
+		} else if (cur_inst_lp_load + core_lp_load <= max_freq) {
+			s_vpr_h(inst->sid, "Moved all inst's to LP");
+			msm_vidc_move_core_to_power_save_mode(core,
+				VIDC_CORE_ID_1, inst->sid);
+		} else {
+			s_vpr_e(inst->sid, "Core cannot support this load\n");
+			return -EINVAL;
+		}
 	}
 
 	inst->clk_data.core_id = VIDC_CORE_ID_1;

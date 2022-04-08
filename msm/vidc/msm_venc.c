@@ -1146,7 +1146,7 @@ static struct msm_vidc_format_desc venc_output_formats[] = {
 	},
 };
 
-struct msm_vidc_format_constraint enc_pix_format_constraints[] = {
+static struct msm_vidc_format_constraint enc_pix_format_constraints[] = {
 	{
 		.fourcc = V4L2_PIX_FMT_SDE_Y_CBCR_H2V2_P010_VENUS,
 		.num_planes = 2,
@@ -1189,7 +1189,7 @@ struct msm_vidc_format_constraint enc_pix_format_constraints[] = {
 	},
 };
 
-u32 v4l2_to_hfi_flip(struct msm_vidc_inst *inst)
+static u32 v4l2_to_hfi_flip(struct msm_vidc_inst *inst)
 {
 	struct v4l2_ctrl *hflip = NULL;
 	struct v4l2_ctrl *vflip = NULL;
@@ -1301,6 +1301,7 @@ int msm_venc_inst_init(struct msm_vidc_inst *inst)
 	msm_vidc_init_buffer_size_calculators(inst);
 	inst->static_rotation_flip_enabled = false;
 	inst->external_blur = false;
+	inst->hdr10_sei_enabled = false;
 	return rc;
 }
 
@@ -1794,6 +1795,7 @@ int msm_venc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 		u32 info_type = ((u32)ctrl->val >> 28) & 0xF;
 		u32 val = (ctrl->val & 0xFFFFFFF);
 
+		inst->hdr10_sei_enabled = true;
 		s_vpr_h(sid, "Ctrl:%d, HDR Info with value %u (%#X)",
 				info_type, val, ctrl->val);
 		switch (info_type) {
@@ -2109,7 +2111,7 @@ int msm_venc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 	return rc;
 }
 
-int msm_venc_set_frame_size(struct msm_vidc_inst *inst)
+static int msm_venc_set_frame_size(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -2214,6 +2216,7 @@ int msm_venc_store_timestamp(struct msm_vidc_inst *inst, u64 timestamp_us)
 	int count = 0;
 	int rc = 0;
 	struct v4l2_ctrl *superframe_ctrl = NULL;
+	struct v4l2_ctrl *ctrl = NULL;
 
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid parameters\n", __func__);
@@ -2222,6 +2225,12 @@ int msm_venc_store_timestamp(struct msm_vidc_inst *inst, u64 timestamp_us)
 
 	if (!inst->core->resources.enc_auto_dynamic_fps ||
 		is_image_session(inst))
+		return rc;
+
+	/* set auto-framerate only for VBR CFR native recorder */
+	ctrl = get_ctrl(inst, V4L2_CID_MPEG_VIDC_VENC_NATIVE_RECORDER);
+	if ((ctrl && ctrl->val == V4L2_MPEG_MSM_VIDC_DISABLE) ||
+		(inst->rc_type != V4L2_MPEG_VIDEO_BITRATE_MODE_VBR))
 		return rc;
 
 	mutex_lock(&inst->timestamps.lock);
@@ -2281,7 +2290,7 @@ unlock:
 	return rc;
 }
 
-int msm_venc_set_color_format(struct msm_vidc_inst *inst)
+static int msm_venc_set_color_format(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct msm_vidc_format_constraint *fmt_constraints;
@@ -2311,7 +2320,7 @@ int msm_venc_set_color_format(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_buffer_counts(struct msm_vidc_inst *inst)
+static int msm_venc_set_buffer_counts(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct msm_vidc_format *fmt;
@@ -2349,7 +2358,7 @@ int msm_venc_set_buffer_counts(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_secure_mode(struct msm_vidc_inst *inst)
+static int msm_venc_set_secure_mode(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -2386,7 +2395,7 @@ int msm_venc_set_secure_mode(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_priority(struct msm_vidc_inst *inst)
+static int msm_venc_set_priority(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -2436,7 +2445,7 @@ int msm_venc_set_operating_rate(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_profile_level(struct msm_vidc_inst *inst)
+static int msm_venc_set_profile_level(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -2498,7 +2507,7 @@ int msm_venc_set_idr_period(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_adaptive_bframes(struct msm_vidc_inst *inst)
+static int msm_venc_set_adaptive_bframes(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -2521,7 +2530,7 @@ int msm_venc_set_adaptive_bframes(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-void msm_venc_adjust_gop_size(struct msm_vidc_inst *inst)
+static void msm_venc_adjust_gop_size(struct msm_vidc_inst *inst)
 {
 	struct v4l2_ctrl *hier_ctrl;
 	struct v4l2_ctrl *gop_size_ctrl;
@@ -2582,7 +2591,8 @@ int msm_venc_set_intra_period(struct msm_vidc_inst *inst)
 
 	intra_period.pframes = gop_size->val;
 
-	if (!max_layer->val && codec == V4L2_PIX_FMT_H264) {
+	/* max_layer 0/1 indicates absence of layer encoding */
+	if (max_layer->val < 2) {
 		/*
 		 * At this point we've already made decision on bframe.
 		 * Control value gives updated bframe value.
@@ -2680,7 +2690,7 @@ int msm_venc_set_request_keyframe(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_rate_control(struct msm_vidc_inst *inst)
+static int msm_venc_set_rate_control(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -2749,7 +2759,7 @@ int msm_venc_set_rate_control(struct msm_vidc_inst *inst)
 
 
 
-int msm_venc_set_vbv_delay(struct msm_vidc_inst *inst)
+static int msm_venc_set_vbv_delay(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	bool is_legacy_cbr;
@@ -2824,7 +2834,7 @@ set_vbv_delay:
 }
 
 
-int msm_venc_set_input_timestamp_rc(struct msm_vidc_inst *inst)
+static int msm_venc_set_input_timestamp_rc(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -3003,7 +3013,7 @@ error:
 	return rc;
 }
 
-int msm_venc_set_frame_qp(struct msm_vidc_inst *inst)
+static int msm_venc_set_frame_qp(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -3071,7 +3081,7 @@ int msm_venc_set_frame_qp(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_qp_range(struct msm_vidc_inst *inst)
+static int msm_venc_set_qp_range(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -3248,7 +3258,7 @@ int msm_venc_set_image_grid(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_image_properties(struct msm_vidc_inst *inst)
+static int msm_venc_set_image_properties(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 
@@ -3284,7 +3294,7 @@ int msm_venc_set_image_properties(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_entropy_mode(struct msm_vidc_inst *inst)
+static int msm_venc_set_entropy_mode(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -3312,7 +3322,7 @@ int msm_venc_set_entropy_mode(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_slice_control_mode(struct msm_vidc_inst *inst)
+static int msm_venc_set_slice_control_mode(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -3475,7 +3485,7 @@ int msm_venc_set_intra_refresh_mode(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_chroma_qp_offset(struct msm_vidc_inst *inst)
+static int msm_venc_set_chroma_qp_offset(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -3534,7 +3544,7 @@ int msm_venc_set_chroma_qp_offset(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_bitrate_savings_mode(struct msm_vidc_inst *inst)
+static int msm_venc_set_bitrate_savings_mode(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -3646,7 +3656,7 @@ setprop:
 }
 
 
-int msm_venc_set_loop_filter_mode(struct msm_vidc_inst *inst)
+static int msm_venc_set_loop_filter_mode(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -3687,7 +3697,7 @@ int msm_venc_set_loop_filter_mode(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_sequence_header_mode(struct msm_vidc_inst *inst)
+static int msm_venc_set_sequence_header_mode(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -3721,7 +3731,7 @@ int msm_venc_set_sequence_header_mode(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_au_delimiter_mode(struct msm_vidc_inst *inst)
+static int msm_venc_set_au_delimiter_mode(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -3752,7 +3762,7 @@ int msm_venc_set_au_delimiter_mode(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_enable_hybrid_hp(struct msm_vidc_inst *inst)
+static int msm_venc_enable_hybrid_hp(struct msm_vidc_inst *inst)
 {
 	struct v4l2_ctrl *ctrl = NULL;
 	struct v4l2_ctrl *layer = NULL;
@@ -4003,7 +4013,7 @@ int msm_venc_set_hp_layer(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_vpx_error_resilience(struct msm_vidc_inst *inst)
+static int msm_venc_set_vpx_error_resilience(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -4032,7 +4042,7 @@ int msm_venc_set_vpx_error_resilience(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_video_signal_info(struct msm_vidc_inst *inst)
+static int msm_venc_set_video_signal_info(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -4089,7 +4099,7 @@ int msm_venc_set_video_signal_info(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_rotation(struct msm_vidc_inst *inst)
+static int msm_venc_set_rotation(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct v4l2_ctrl *rotation = NULL;
@@ -4196,6 +4206,9 @@ int msm_venc_check_dynamic_flip_constraints(struct msm_vidc_inst *inst)
 		/* Reject dynamic flip with scalar enabled */
 		s_vpr_e(inst->sid, "Unsupported dynamic flip with scalar\n");
 		rc = -EINVAL;
+	} else if (handle_vpss_restrictions(inst)) {
+		s_vpr_e(inst->sid, "Unsupported resolution for dynamic flip\n");
+		rc = -EINVAL;
 	}
 
 	return rc;
@@ -4237,7 +4250,7 @@ int msm_venc_set_dynamic_flip(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_video_csc(struct msm_vidc_inst *inst)
+static int msm_venc_set_video_csc(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -4273,7 +4286,7 @@ int msm_venc_set_video_csc(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_8x8_transform(struct msm_vidc_inst *inst)
+static int msm_venc_set_8x8_transform(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -4312,7 +4325,7 @@ int msm_venc_set_8x8_transform(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_vui_timing_info(struct msm_vidc_inst *inst)
+static int msm_venc_set_vui_timing_info(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -4366,7 +4379,7 @@ int msm_venc_set_vui_timing_info(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_nal_stream_format(struct msm_vidc_inst *inst)
+static int msm_venc_set_nal_stream_format(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -4428,7 +4441,7 @@ int msm_venc_set_nal_stream_format(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_ltr_mode(struct msm_vidc_inst *inst)
+static int msm_venc_set_ltr_mode(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	bool is_ltr = true;
@@ -4594,7 +4607,7 @@ int msm_venc_set_dyn_qp(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 	return rc;
 }
 
-int msm_venc_set_aspect_ratio(struct msm_vidc_inst *inst)
+static int msm_venc_set_aspect_ratio(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct hfi_device *hdev;
@@ -4708,7 +4721,7 @@ int msm_venc_set_blur_resolution(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_set_hdr_info(struct msm_vidc_inst *inst)
+static int msm_venc_set_hdr_info(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
 	struct v4l2_ctrl *profile = NULL;
@@ -4720,7 +4733,8 @@ int msm_venc_set_hdr_info(struct msm_vidc_inst *inst)
 	}
 	hdev = inst->core->device;
 
-	if (get_v4l2_codec(inst) != V4L2_PIX_FMT_HEVC)
+	if (get_v4l2_codec(inst) != V4L2_PIX_FMT_HEVC ||
+		!inst->hdr10_sei_enabled)
 		return 0;
 
 	profile = get_ctrl(inst, V4L2_CID_MPEG_VIDEO_HEVC_PROFILE);
@@ -4849,7 +4863,7 @@ int msm_venc_set_cvp_skipratio(struct msm_vidc_inst *inst)
 	return rc;
 }
 
-int msm_venc_update_entropy_mode(struct msm_vidc_inst *inst)
+static int msm_venc_update_entropy_mode(struct msm_vidc_inst *inst)
 {
 	if (!inst) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -4997,6 +5011,69 @@ int check_blur_restrictions(struct msm_vidc_inst *inst)
 	return 0;
 }
 
+int handle_vpss_restrictions(struct msm_vidc_inst *inst)
+{
+	struct v4l2_ctrl *rotation = NULL;
+	struct v4l2_ctrl *hflip = NULL;
+	struct v4l2_ctrl *vflip = NULL;
+	struct v4l2_format *f;
+	struct msm_vidc_vpss_capability *vpss_caps;
+	u32 vpss_caps_count;
+	bool rotation_flip_enable = false;
+	u32 i,input_height, input_width;
+
+	if (!inst || !inst->core) {
+		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
+		return -EINVAL;
+	}
+
+	f = &inst->fmts[INPUT_PORT].v4l2_fmt;
+	input_height = f->fmt.pix_mp.height;
+	input_width = f->fmt.pix_mp.width;
+
+	vpss_caps = inst->core->resources.vpss_caps;
+	vpss_caps_count = inst->core->resources.vpss_caps_count;
+
+	/* check customer specified VPSS resolutions */
+	if (vpss_caps) {
+		for (i = 0; i < vpss_caps_count; i++) {
+			if (input_width == vpss_caps[i].width &&
+				input_height == vpss_caps[i].height) {
+				s_vpr_h(inst->sid,
+					"supported resolution found for VPSS, width = %d, height = %d\n",
+					input_width, input_height);
+				return 0;
+			}
+		}
+	}
+
+	/* check rotation and flip contraint for VPSS
+	 * any rotation or flip sessions with non-multiple of 8
+	 * resolution is rejected.
+	 */
+	rotation = get_ctrl(inst, V4L2_CID_ROTATE);
+	hflip = get_ctrl(inst, V4L2_CID_HFLIP);
+	vflip = get_ctrl(inst, V4L2_CID_VFLIP);
+	if (rotation->val != 0 ||
+		hflip->val != V4L2_MPEG_MSM_VIDC_DISABLE ||
+		vflip->val != V4L2_MPEG_MSM_VIDC_DISABLE)
+		rotation_flip_enable = true;
+
+	if (rotation_flip_enable) {
+		if ((input_width & 7) != 0) {
+			s_vpr_e(inst->sid, "Unsupported width = %d for VPSS\n",
+				input_width);
+			return -ENOTSUPP;
+		}
+		if ((input_height & 7) != 0) {
+			s_vpr_e(inst->sid, "Unsupported height = %d for VPSS\n",
+				input_height);
+			return -ENOTSUPP;
+		}
+	}
+	return 0;
+}
+
 int msm_venc_set_properties(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
@@ -5008,6 +5085,9 @@ int msm_venc_set_properties(struct msm_vidc_inst *inst)
 	if (rc)
 		goto exit;
 	rc = handle_all_intra_restrictions(inst);
+	if (rc)
+		goto exit;
+	rc = handle_vpss_restrictions(inst);
 	if (rc)
 		goto exit;
 	rc = msm_venc_set_frame_size(inst);

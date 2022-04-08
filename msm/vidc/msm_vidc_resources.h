@@ -1,6 +1,6 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2013-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
  */
 
 #ifndef __MSM_VIDC_RESOURCES_H__
@@ -9,6 +9,7 @@
 #include <linux/platform_device.h>
 #include "msm_vidc.h"
 #include <linux/soc/qcom/llcc-qcom.h>
+#include <soc/qcom/cx_ipeak.h>
 
 #define MAX_BUFFER_TYPES 32
 
@@ -196,6 +197,8 @@ struct msm_vidc_platform_resources {
 	uint32_t codecs_count;
 	struct msm_vidc_codec_capability *codec_caps;
 	uint32_t codec_caps_count;
+	struct msm_vidc_vpss_capability *vpss_caps;
+	uint32_t vpss_caps_count;
 	struct msm_vidc_csc_coeff *csc_coeff_data;
 	struct msm_vidc_mem_cdsp mem_cdsp;
 	uint32_t vpu_ver;
@@ -204,6 +207,7 @@ struct msm_vidc_platform_resources {
 	uint32_t avsync_window_size;
 	struct msm_vidc_ubwc_config_data *ubwc_config;
 	uint32_t clk_freq_threshold;
+	struct cx_ipeak_client *cx_ipeak_context;
 	uint32_t ubwc_stats_in_fbd;
 	uint32_t has_vpp_delay;
 	bool enc_auto_dynamic_fps;

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -17,6 +17,8 @@
 #include <soc/qcom/boot_stats.h>
 
 #define BASE_DEVICE_NUMBER 32
+#define VIDC_CORE_STATE_CHNG_WAIT_MAX_RETRY 300
+#define VIDC_CORE_STATE_CHNG_WAIT_SLEEP_IN_MS 20
 
 struct msm_vidc_drv *vidc_driver;
 
@@ -72,7 +74,7 @@ static int msm_v4l2_querycap(struct file *filp, void *fh,
 	return msm_vidc_querycap((void *)vidc_inst, cap);
 }
 
-int msm_v4l2_enum_fmt(struct file *file, void *fh,
+static int msm_v4l2_enum_fmt(struct file *file, void *fh,
 					struct v4l2_fmtdesc *f)
 {
 	struct msm_vidc_inst *vidc_inst = get_vidc_inst(file, fh);
@@ -80,7 +82,7 @@ int msm_v4l2_enum_fmt(struct file *file, void *fh,
 	return msm_vidc_enum_fmt((void *)vidc_inst, f);
 }
 
-int msm_v4l2_s_fmt(struct file *file, void *fh,
+static int msm_v4l2_s_fmt(struct file *file, void *fh,
 					struct v4l2_format *f)
 {
 	struct msm_vidc_inst *vidc_inst = get_vidc_inst(file, fh);
@@ -88,7 +90,7 @@ int msm_v4l2_s_fmt(struct file *file, void *fh,
 	return msm_vidc_s_fmt((void *)vidc_inst, f);
 }
 
-int msm_v4l2_g_fmt(struct file *file, void *fh,
+static int msm_v4l2_g_fmt(struct file *file, void *fh,
 					struct v4l2_format *f)
 {
 	struct msm_vidc_inst *vidc_inst = get_vidc_inst(file, fh);
@@ -96,7 +98,7 @@ int msm_v4l2_g_fmt(struct file *file, void *fh,
 	return msm_vidc_g_fmt((void *)vidc_inst, f);
 }
 
-int msm_v4l2_s_ctrl(struct file *file, void *fh,
+static int msm_v4l2_s_ctrl(struct file *file, void *fh,
 					struct v4l2_control *a)
 {
 	struct msm_vidc_inst *vidc_inst = get_vidc_inst(file, fh);
@@ -104,7 +106,7 @@ int msm_v4l2_s_ctrl(struct file *file, void *fh,
 	return msm_vidc_s_ctrl((void *)vidc_inst, a);
 }
 
-int msm_v4l2_g_ctrl(struct file *file, void *fh,
+static int msm_v4l2_g_ctrl(struct file *file, void *fh,
 					struct v4l2_control *a)
 {
 	struct msm_vidc_inst *vidc_inst = get_vidc_inst(file, fh);
@@ -112,7 +114,7 @@ int msm_v4l2_g_ctrl(struct file *file, void *fh,
 	return msm_vidc_g_ctrl((void *)vidc_inst, a);
 }
 
-int msm_v4l2_reqbufs(struct file *file, void *fh,
+static int msm_v4l2_reqbufs(struct file *file, void *fh,
 				struct v4l2_requestbuffers *b)
 {
 	struct msm_vidc_inst *vidc_inst = get_vidc_inst(file, fh);
@@ -120,20 +122,20 @@ int msm_v4l2_reqbufs(struct file *file, void *fh,
 	return msm_vidc_reqbufs((void *)vidc_inst, b);
 }
 
-int msm_v4l2_qbuf(struct file *file, void *fh,
+static int msm_v4l2_qbuf(struct file *file, void *fh,
 				struct v4l2_buffer *b)
 {
 	struct video_device *vdev = video_devdata(file);
 	return msm_vidc_qbuf(get_vidc_inst(file, fh), vdev->v4l2_dev->mdev, b);
 }
 
-int msm_v4l2_dqbuf(struct file *file, void *fh,
+static int msm_v4l2_dqbuf(struct file *file, void *fh,
 				struct v4l2_buffer *b)
 {
 	return msm_vidc_dqbuf(get_vidc_inst(file, fh), b);
 }
 
-int msm_v4l2_streamon(struct file *file, void *fh,
+static int msm_v4l2_streamon(struct file *file, void *fh,
 				enum v4l2_buf_type i)
 {
 	struct msm_vidc_inst *vidc_inst = get_vidc_inst(file, fh);
@@ -141,7 +143,7 @@ int msm_v4l2_streamon(struct file *file, void *fh,
 	return msm_vidc_streamon((void *)vidc_inst, i);
 }
 
-int msm_v4l2_streamoff(struct file *file, void *fh,
+static int msm_v4l2_streamoff(struct file *file, void *fh,
 				enum v4l2_buf_type i)
 {
 	struct msm_vidc_inst *vidc_inst = get_vidc_inst(file, fh);
@@ -216,7 +218,7 @@ static long msm_v4l2_default(struct file *file, void *fh,
 }
 
 
-const struct v4l2_ioctl_ops msm_v4l2_ioctl_ops = {
+static const struct v4l2_ioctl_ops msm_v4l2_ioctl_ops = {
 	.vidioc_querycap = msm_v4l2_querycap,
 	.vidioc_enum_fmt_vid_cap = msm_v4l2_enum_fmt,
 	.vidioc_enum_fmt_vid_out = msm_v4l2_enum_fmt,
@@ -262,7 +264,7 @@ static const struct v4l2_file_operations msm_v4l2_vidc_fops = {
 	.poll = msm_v4l2_poll,
 };
 
-void msm_vidc_release_video_device(struct video_device *pvdev)
+static void msm_vidc_release_video_device(struct video_device *pvdev)
 {
 }
 
@@ -511,6 +513,12 @@ static int msm_vidc_probe_vidc_device(struct platform_device *pdev)
 
 	core->id = MSM_VIDC_CORE_VENUS;
 
+	vidc_driver->ctxt = kcalloc(core->platform_data->max_inst_count,
+		sizeof(*vidc_driver->ctxt), GFP_KERNEL);
+	if (!vidc_driver->ctxt)
+		goto err_vidc_context;
+	vidc_driver->num_ctxt = core->platform_data->max_inst_count;
+
 	rc = v4l2_device_register(&pdev->dev, &core->v4l2_dev);
 	if (rc) {
 		d_vpr_e("Failed to register v4l2 device\n");
@@ -624,6 +632,8 @@ err_enc:
 err_dec:
 	v4l2_device_unregister(&core->v4l2_dev);
 err_v4l2_register:
+	kfree(vidc_driver->ctxt);
+err_vidc_context:
 	sysfs_remove_group(&pdev->dev.kobj, &msm_vidc_core_attr_group);
 err_core_init:
 	dev_set_drvdata(&pdev->dev, NULL);
@@ -701,6 +711,66 @@ static int msm_vidc_remove(struct platform_device *pdev)
 	mutex_destroy(&core->resources.cb_lock);
 	mutex_destroy(&core->lock);
 	kfree(core);
+	kfree(vidc_driver->ctxt);
+	return rc;
+}
+
+int msm_vidc_freeze_core(struct msm_vidc_core *core)
+{
+	int rc = 0;
+	int max_retry = 0;
+	struct hfi_device *hdev = NULL;
+	struct msm_vidc_ssr *ssr = NULL;
+
+	hdev = core->device;
+	ssr  = &core->ssr;
+
+	mutex_lock(&core->lock);
+	d_vpr_e("%s: SSR intended to deinit vidc\n", __func__);
+
+	ssr->ssr_type 	= (SSR_ERR_FATAL & (unsigned long)SSR_TYPE) >> SSR_TYPE_SHIFT;
+	ssr->sub_client_id = (SSR_ERR_FATAL & (unsigned long)SSR_SUB_CLIENT_ID) >> SSR_SUB_CLIENT_ID_SHIFT;
+	ssr->test_addr 	= (SSR_ERR_FATAL & (unsigned long)SSR_ADDR_ID) >> SSR_ADDR_SHIFT;
+
+	if (core->state == VIDC_CORE_INIT_DONE) {
+		d_vpr_e("%s: ssr type %d\n", __func__, ssr->ssr_type);
+		/*
+		 * In current implementation user-initiated SSR triggers
+		 * a fatal error from hardware. However, there is no way
+		 * to know if fatal error is due to SSR or not. Handle
+		 * user SSR as non-fatal.
+		 */
+		core->trigger_ssr = true;
+		rc = call_hfi_op(hdev, core_trigger_ssr,
+				hdev->hfi_device_data, ssr->ssr_type,
+				ssr->sub_client_id, ssr->test_addr);
+		if (rc) {
+			d_vpr_e("%s: trigger_ssr failed\n", __func__);
+			core->trigger_ssr = false;
+		}
+	} else {
+		d_vpr_e("%s: video core not initialized\n", __func__);
+	}
+	mutex_unlock(&core->lock);
+
+	/* Video core uninitialization may take some time after
+	 * triggering SSR. Wait for a while and check the core
+	 * state.
+	*/
+	while ((core->state != VIDC_CORE_UNINIT) && (max_retry < VIDC_CORE_STATE_CHNG_WAIT_MAX_RETRY)) {
+		msleep(VIDC_CORE_STATE_CHNG_WAIT_SLEEP_IN_MS);
+		max_retry++;
+	}
+
+	if (core->state == VIDC_CORE_UNINIT)
+	{
+		d_vpr_e("%s: video core uninitialized\n", __func__);
+	}
+
+	mutex_lock(&core->lock);
+	core->trigger_ssr = false;
+	mutex_unlock(&core->lock);
+
 	return rc;
 }
 
@@ -709,6 +779,7 @@ static int msm_vidc_pm_suspend(struct device *dev)
 	int rc = 0;
 	struct msm_vidc_core *core;
 
+	d_vpr_h("%s\n", __func__);
 	/*
 	 * Bail out if
 	 * - driver possibly not probed yet
@@ -730,19 +801,69 @@ static int msm_vidc_pm_suspend(struct device *dev)
 		rc = 0;
 	else if (rc)
 		d_vpr_e("Failed to suspend: %d\n", rc);
-
+	else
+		core->pm_suspended  = true;
 
 	return rc;
 }
 
 static int msm_vidc_pm_resume(struct device *dev)
 {
+	struct msm_vidc_core *core;
+
+	place_marker("vidc resumed");
+
 	d_vpr_h("%s\n", __func__);
+	/*
+	 * Bail out if
+	 * - driver possibly not probed yet
+	 * - not the main device. We don't support power management on
+	 *   subdevices (e.g. context banks)
+	 */
+	if (!dev || !dev->driver ||
+		!of_device_is_compatible(dev->of_node, "qcom,msm-vidc"))
+		return 0;
+
+	core = dev_get_drvdata(dev);
+	if (!core) {
+		d_vpr_e("%s: invalid core\n", __func__);
+		return -EINVAL;
+	}
+	core->pm_suspended  = false;
 	return 0;
 }
 
+static int msm_vidc_pm_freeze(struct device *dev)
+{
+	int rc = 0;
+	struct msm_vidc_core *core = NULL;
+
+	if (!dev || !dev->driver)
+		return 0;
+
+	core = dev_get_drvdata(dev);
+	if (!core)
+		return 0;
+
+	/* Bail out if device is not the main device.
+	 * Suspend/Freeze not supported for subdevices (context banks)
+	*/
+	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc")) {
+		place_marker("vidc hibernation start");
+
+		rc = msm_vidc_freeze_core(core);
+
+		place_marker("vidc hibernation end");
+	}
+	d_vpr_h("%s: done\n", __func__);
+
+	return rc;
+}
+
 static const struct dev_pm_ops msm_vidc_pm_ops = {
-	SET_SYSTEM_SLEEP_PM_OPS(msm_vidc_pm_suspend, msm_vidc_pm_resume)
+	.suspend = msm_vidc_pm_suspend,
+	.resume  = msm_vidc_pm_resume,
+	.freeze  = msm_vidc_pm_freeze,
 };
 
 MODULE_DEVICE_TABLE(of, msm_vidc_dt_match);
