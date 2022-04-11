@@ -69,7 +69,7 @@ u32 vidc_get_hfi_codec(enum hal_video_codec hal_codec, u32 sid)
 	return hfi_codec;
 }
 
-int create_pkt_cmd_sys_init(struct hfi_cmd_sys_init_packet *pkt,
+static int create_pkt_cmd_sys_init(struct hfi_cmd_sys_init_packet *pkt,
 			   u32 arch_type)
 {
 	int rc = 0;
@@ -83,7 +83,7 @@ int create_pkt_cmd_sys_init(struct hfi_cmd_sys_init_packet *pkt,
 	return rc;
 }
 
-int create_pkt_cmd_sys_ping(struct hfi_cmd_sys_ping_packet *pkt, u32 sid)
+static int create_pkt_cmd_sys_ping(struct hfi_cmd_sys_ping_packet *pkt, u32 sid)
 {
 	int rc = 0;
 
@@ -97,7 +97,7 @@ int create_pkt_cmd_sys_ping(struct hfi_cmd_sys_ping_packet *pkt, u32 sid)
 	return rc;
 }
 
-int create_pkt_cmd_sys_pc_prep(struct hfi_cmd_sys_pc_prep_packet *pkt)
+static int create_pkt_cmd_sys_pc_prep(struct hfi_cmd_sys_pc_prep_packet *pkt)
 {
 	int rc = 0;
 
@@ -109,7 +109,7 @@ int create_pkt_cmd_sys_pc_prep(struct hfi_cmd_sys_pc_prep_packet *pkt)
 	return rc;
 }
 
-int create_pkt_cmd_sys_debug_config(
+static int create_pkt_cmd_sys_debug_config(
 	struct hfi_cmd_sys_set_property_packet *pkt,
 	u32 mode)
 {
@@ -132,7 +132,7 @@ int create_pkt_cmd_sys_debug_config(
 	return 0;
 }
 
-int create_pkt_cmd_sys_coverage_config(
+static int create_pkt_cmd_sys_coverage_config(
 	struct hfi_cmd_sys_set_property_packet *pkt,
 	u32 mode, u32 sid)
 {
@@ -151,7 +151,7 @@ int create_pkt_cmd_sys_coverage_config(
 	return 0;
 }
 
-int create_pkt_cmd_sys_set_resource(
+static int create_pkt_cmd_sys_set_resource(
 		struct hfi_cmd_sys_set_resource_packet *pkt,
 		struct vidc_resource_hdr *res_hdr,
 		void *res_value)
@@ -207,7 +207,7 @@ int create_pkt_cmd_sys_set_resource(
 	return rc;
 }
 
-int create_pkt_cmd_sys_release_resource(
+static int create_pkt_cmd_sys_release_resource(
 		struct hfi_cmd_sys_release_resource_packet *pkt,
 		struct vidc_resource_hdr *res_hdr)
 {
@@ -259,7 +259,7 @@ static inline int create_pkt_cmd_sys_session_init(
 }
 
 
-int create_pkt_cmd_sys_ubwc_config(
+static int create_pkt_cmd_sys_ubwc_config(
 		struct hfi_cmd_sys_set_property_packet *pkt,
 		struct msm_vidc_ubwc_config_data *ubwc_config)
 {
@@ -302,7 +302,7 @@ int create_pkt_cmd_sys_ubwc_config(
 	return rc;
 }
 
-int create_pkt_cmd_session_cmd(struct vidc_hal_session_cmd_pkt *pkt,
+static int create_pkt_cmd_session_cmd(struct vidc_hal_session_cmd_pkt *pkt,
 			int pkt_type, u32 sid)
 {
 	int rc = 0;
@@ -317,7 +317,7 @@ int create_pkt_cmd_session_cmd(struct vidc_hal_session_cmd_pkt *pkt,
 	return rc;
 }
 
-int create_pkt_cmd_sys_power_control(
+static int create_pkt_cmd_sys_power_control(
 	struct hfi_cmd_sys_set_property_packet *pkt, u32 enable)
 {
 	struct hfi_enable *hfi;
@@ -383,7 +383,7 @@ static u32 get_hfi_buffer(int hal_buffer, u32 sid)
 	return buffer;
 }
 
-int create_pkt_cmd_session_set_buffers(
+static int create_pkt_cmd_session_set_buffers(
 		struct hfi_cmd_session_set_buffers_packet *pkt,
 		u32 sid, struct vidc_buffer_addr_info *buffer_info)
 {
@@ -433,7 +433,7 @@ int create_pkt_cmd_session_set_buffers(
 	return rc;
 }
 
-int create_pkt_cmd_session_release_buffers(
+static int create_pkt_cmd_session_release_buffers(
 		struct hfi_cmd_session_release_buffer_packet *pkt,
 		u32 sid, struct vidc_buffer_addr_info *buffer_info)
 {
