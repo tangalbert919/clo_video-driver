@@ -3,12 +3,17 @@
  * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
  */
 
+#include <linux/of_address.h>
+#include <linux/firmware.h>
+#include <linux/qcom_scm.h>
+#include <linux/soc/qcom/mdt_loader.h>
 #include "hfi_common.h"
 
 #define FIRMWARE_SIZE			0X00A00000
 #define REG_ADDR_OFFSET_BITMASK	0x000FFFFF
 #define QDSS_IOVA_START 0x80001000
 #define MIN_PAYLOAD_SIZE 3
+#define MAX_FIRMWARE_NAME_SIZE 128
 
 static struct hal_device_data hal_ctxt;
 static struct venus_hfi_device venus_hfi_dev;
@@ -4401,6 +4406,109 @@ err_venus_power_on:
 	return rc;
 }
 
+static int __load_fw_to_memory(struct platform_device *pdev,
+	const char *fw_name)
+{
+	int rc = 0;
+	const struct firmware *firmware = NULL;
+	char firmware_name[MAX_FIRMWARE_NAME_SIZE] = { 0 };
+	struct device_node *node = NULL;
+	struct resource res = { 0 };
+	phys_addr_t phys = 0;
+	size_t res_size = 0;
+	ssize_t fw_size = 0;
+	void *virt = NULL;
+	int pas_id = 0;
+
+	if (!fw_name || !(*fw_name) || !pdev) {
+		d_vpr_e("%s: Invalid inputs\n",__func__);
+		rc = -EINVAL;
+		goto exit;
+	}
+	if (strlen(fw_name) >= (MAX_FIRMWARE_NAME_SIZE - 4)) {
+		d_vpr_e("%s: Invalid firmware name\n",__func__);
+		rc = -EINVAL;
+		goto exit;
+	}
+	scnprintf(firmware_name, ARRAY_SIZE(firmware_name), "%s.mdt", fw_name);
+
+	rc = of_property_read_u32(pdev->dev.of_node, "pas-id", &pas_id);
+	if (rc) {
+		d_vpr_e("%s: failed to read \"pas-is\". error %d\n",
+			__func__, rc);
+		goto exit;
+	}
+
+	node = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
+	if (!node) {
+		d_vpr_e("%s: failed to read \"memory-region\"\n",__func__);
+		rc = -EINVAL;
+		goto exit;
+	}
+
+	rc = of_address_to_resource(node, 0, &res);
+	if (rc) {
+		d_vpr_e("%s: failed to read \"memory-region\". error %d\n",
+                        __func__, rc);
+		goto exit;
+	}
+	phys = res.start;
+	res_size = (size_t)resource_size(&res);
+
+	rc = request_firmware(&firmware, firmware_name, &pdev->dev);
+	if (rc) {
+                d_vpr_e("%s: failed to request fw  \"%s\". error %d\n",
+                        __func__, firmware_name, rc);
+                goto exit;
+        }
+
+	fw_size = qcom_mdt_get_size(firmware);
+	if (fw_size < 0 || res_size < (size_t)fw_size) {
+		d_vpr_e("%s: out of bound fw image fw size: %ld, res_size: %lu",
+			__func__, fw_size, res_size);
+		goto exit;
+	}
+
+	virt = memremap(phys, res_size, MEMREMAP_WC);
+	if (!virt) {
+		d_vpr_e("%s: failed to remap fw memory phys %pa[p]\n",
+			__func__, phys);
+		rc = -ENOMEM;
+		goto exit;
+	}
+
+	/*prevent system suspend during fw_load*/
+	pm_stay_awake(pdev->dev.parent);
+	rc = qcom_mdt_load(&pdev->dev, firmware, firmware_name,
+		pas_id, virt, phys, res_size, NULL);
+	pm_relax(pdev->dev.parent);
+	if (rc) {
+		d_vpr_e("%s: error %d loading firmware \"%s\"\n",
+			__func__, rc, firmware_name);
+		goto exit;
+	}
+	rc = qcom_scm_pas_auth_and_reset(pas_id);
+	if (rc) {
+		d_vpr_e("%s: error %d authenticating fw \"%s\"\n",
+			__func__, rc, firmware_name);
+		goto exit;
+	}
+	memunmap(virt);
+	release_firmware(firmware);
+	d_vpr_e("%s: firmware \"%s\" loaded successfully\n",
+		__func__, firmware_name);
+
+	return pas_id;
+
+exit:
+	if (virt)
+		memunmap(virt);
+	if (firmware)
+		release_firmware(firmware);
+
+	return rc;
+}
+
 static int __load_fw(struct venus_hfi_device *device)
 {
 	int rc = 0;
@@ -4428,12 +4536,12 @@ static int __load_fw(struct venus_hfi_device *device)
 	if (!device->res->firmware_base) {
 		if (!device->resources.fw.cookie)
 			device->resources.fw.cookie =
-				subsystem_get_with_fwname("venus",
+				__load_fw_to_memory(device->res->pdev,
 				device->res->fw_name);
 
-		if (IS_ERR_OR_NULL(device->resources.fw.cookie)) {
-			d_vpr_e("Failed to download firmware\n");
-			device->resources.fw.cookie = NULL;
+		if (device->resources.fw.cookie <= 0) {
+			d_vpr_e("Failed to download firmware %d\n",device->resources.fw.cookie);
+			device->resources.fw.cookie = 0;
 			rc = -ENOMEM;
 			goto fail_load_fw;
 		}
@@ -4461,8 +4569,8 @@ static int __load_fw(struct venus_hfi_device *device)
 	return rc;
 fail_protect_mem:
 	if (device->resources.fw.cookie)
-		subsystem_put(device->resources.fw.cookie);
-	device->resources.fw.cookie = NULL;
+		qcom_scm_pas_shutdown(device->resources.fw.cookie);
+	device->resources.fw.cookie = 0;
 fail_load_fw:
 	call_venus_op(device, power_off, device);
 fail_venus_power_on:
@@ -4482,10 +4590,10 @@ static void __unload_fw(struct venus_hfi_device *device)
 	if (device->state != VENUS_STATE_DEINIT)
 		flush_workqueue(device->venus_pm_workq);
 
-	subsystem_put(device->resources.fw.cookie);
+	qcom_scm_pas_shutdown(device->resources.fw.cookie);
+	device->resources.fw.cookie = 0;
 	__interface_queues_release(device);
 	call_venus_op(device, power_off, device);
-	device->resources.fw.cookie = NULL;
 	__deinit_resources(device);
 
 	d_vpr_h("Firmware unloaded successfully\n");
