@@ -346,127 +346,22 @@ static void __sim_modify_cmd_packet(u8 *packet, struct venus_hfi_device *device)
 
 static int __dsp_send_hfi_queue(struct venus_hfi_device *device)
 {
-	int rc;
-
-	if (!device->res->cvp_internal)
-		return 0;
-
-	if (!device->dsp_iface_q_table.mem_data.dma_handle) {
-		d_vpr_e("%s: invalid dsm_handle\n", __func__);
-		return -EINVAL;
-	}
-
-	if (device->dsp_flags & DSP_INIT) {
-		d_vpr_h("%s: dsp already inited\n", __func__);
-		return 0;
-	}
-
-	d_vpr_h("%s: hfi queue %#llx size %d\n",
-		__func__, device->dsp_iface_q_table.mem_data.dma_handle,
-		device->dsp_iface_q_table.mem_data.size);
-	rc = fastcvpd_video_send_cmd_hfi_queue(
-		(phys_addr_t *)device->dsp_iface_q_table.mem_data.dma_handle,
-		device->dsp_iface_q_table.mem_data.size);
-	if (rc) {
-		d_vpr_e("%s: dsp init failed\n", __func__);
-		return rc;
-	}
-
-	device->dsp_flags |= DSP_INIT;
-	d_vpr_h("%s: dsp inited\n", __func__);
-	return rc;
+	return 0;
 }
 
 static int __dsp_suspend(struct venus_hfi_device *device, bool force, u32 flags)
 {
-	int rc;
-	struct hal_session *temp;
-
-	if (!device->res->cvp_internal)
-		return 0;
-
-	if (!(device->dsp_flags & DSP_INIT))
-		return 0;
-
-	if (device->dsp_flags & DSP_SUSPEND)
-		return 0;
-
-	list_for_each_entry(temp, &device->sess_head, list) {
-		/* if forceful suspend, don't check session pause info */
-		if (force)
-			continue;
-		if (temp->domain == HAL_VIDEO_DOMAIN_CVP) {
-			/* don't suspend if cvp session is not paused */
-			if (!(temp->flags & SESSION_PAUSE)) {
-				s_vpr_h(temp->sid,
-					"%s: cvp session not paused\n",
-					__func__);
-				return -EBUSY;
-			}
-		}
-	}
-
-	d_vpr_h("%s: suspend dsp\n", __func__);
-	rc = fastcvpd_video_suspend(flags);
-	if (rc) {
-		d_vpr_e("%s: dsp suspend failed with error %d\n",
-			__func__, rc);
-		return -EINVAL;
-	}
-
-	device->dsp_flags |= DSP_SUSPEND;
-	d_vpr_h("%s: dsp suspended\n", __func__);
 	return 0;
 }
 
 static int __dsp_resume(struct venus_hfi_device *device, u32 flags)
 {
-	int rc;
-
-	if (!device->res->cvp_internal)
-		return 0;
-
-	if (!(device->dsp_flags & DSP_SUSPEND)) {
-		d_vpr_h("%s: dsp not suspended\n", __func__);
-		return 0;
-	}
-
-	d_vpr_h("%s: resume dsp\n", __func__);
-	rc = fastcvpd_video_resume(flags);
-	if (rc) {
-		d_vpr_e("%s: dsp resume failed with error %d\n",
-			__func__, rc);
-		return rc;
-	}
-
-	device->dsp_flags &= ~DSP_SUSPEND;
-	d_vpr_h("%s: dsp resumed\n", __func__);
-	return rc;
+	return 0;
 }
 
 static int __dsp_shutdown(struct venus_hfi_device *device, u32 flags)
 {
-	int rc;
-
-	if (!device->res->cvp_internal)
-		return 0;
-
-	if (!(device->dsp_flags & DSP_INIT)) {
-		d_vpr_h("%s: dsp not inited\n", __func__);
-		return 0;
-	}
-
-	d_vpr_h("%s: shutdown dsp\n", __func__);
-	rc = fastcvpd_video_shutdown(flags);
-	if (rc) {
-		d_vpr_e("%s: dsp shutdown failed with error %d\n",
-			__func__, rc);
-		WARN_ON(1);
-	}
-
-	device->dsp_flags &= ~DSP_INIT;
-	d_vpr_h("%s: dsp shutdown successful\n", __func__);
-	return rc;
+	return 0;
 }
 
 static int __session_pause(struct venus_hfi_device *device,
@@ -3203,8 +3098,9 @@ static void __flush_debug_queue(struct venus_hfi_device *device, u8 *packet)
 			SKIP_INVALID_PKT(pkt->size,
 				pkt->msg_size, sizeof(*pkt));
 
+			/* video compilation change for 5.15 - to be reviewed
 			stm_size = stm_log_inv_ts(0, 0,
-				pkt->rg_msg_data, pkt->msg_size);
+				pkt->rg_msg_data, pkt->msg_size);*/
 			if (stm_size == 0)
 				d_vpr_e("In %s, stm_log returned size of 0\n",
 					__func__);
@@ -3524,7 +3420,7 @@ static int __init_regs_and_interrupts(struct venus_hfi_device *device,
 
 	hal->irq = res->irq;
 	hal->firmware_base = res->firmware_base;
-	hal->register_base = devm_ioremap_nocache(&res->pdev->dev,
+	hal->register_base = devm_ioremap(&res->pdev->dev,
 			res->register_base, res->register_size);
 	hal->register_size = res->register_size;
 	if (!hal->register_base) {
@@ -4010,7 +3906,7 @@ static int __protect_cp_mem(struct venus_hfi_device *device)
 	}
 	mutex_unlock(&device->res->cb_lock);
 
-	rc = qcom_scm_mem_protect_video(memprot.cp_start, memprot.cp_size,
+	rc = qcom_scm_mem_protect_video_var(memprot.cp_start, memprot.cp_size,
 			memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
 
 	if (rc)

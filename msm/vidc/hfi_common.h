@@ -16,8 +16,6 @@
 #include <linux/reset.h>
 #include <linux/interrupt.h>
 #include <linux/coresight-stm.h>
-#include <linux/fastcvpd.h>
-#include <soc/qcom/subsystem_restart.h>
 #include "vidc_hfi_api.h"
 #include "vidc_hfi_helper.h"
 #include "vidc_hfi_api.h"

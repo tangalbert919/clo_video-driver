@@ -22,6 +22,10 @@
 #define MAX_BITRATE_DECODER_2STAGE_CABAC       200000000
 #define MAX_BITRATE_DECODER_1STAGE_CABAC        70000000
 
+#define IS_PRIV_CTRL(idx) (\
+		(V4L2_CTRL_ID2WHICH(idx) == V4L2_CTRL_CLASS_CODEC) && \
+		V4L2_CTRL_DRIVER_PRIV(idx))
+
 struct vb2_buf_entry {
 	struct list_head list;
 	struct vb2_buffer *vb;
@@ -321,9 +325,6 @@ int msm_comm_reset_bufreqs(struct msm_vidc_inst *inst,
 	enum hal_buffer buf_type);
 struct hal_buffer_requirements *get_buff_req_buffer(
 			struct msm_vidc_inst *inst, u32 buffer_type);
-#define IS_PRIV_CTRL(idx) (\
-		(V4L2_CTRL_ID2WHICH(idx) == V4L2_CTRL_CLASS_MPEG) && \
-		V4L2_CTRL_DRIVER_PRIV(idx))
 void msm_comm_session_clean(struct msm_vidc_inst *inst);
 int msm_comm_kill_session(struct msm_vidc_inst *inst);
 void msm_comm_generate_session_error(struct msm_vidc_inst *inst);

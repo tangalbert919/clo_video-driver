@@ -13,13 +13,11 @@
 #include <linux/types.h>
 #include <linux/time.h>
 #include <linux/interrupt.h>
-#include <soc/qcom/subsystem_restart.h>
 #include "msm_vidc_internal.h"
 
 // void disable_irq_nosync(unsigned int irq);
 // void enable_irq(unsigned int irq);
 
-void do_gettimeofday(struct timeval *__ddl_tv);
 
 #ifndef CONFIG_VIDEOBUF2_CORE
 int vb2_reqbufs(struct vb2_queue *q, struct v4l2_requestbuffers *req);
@@ -261,28 +259,20 @@ static inline void put_sid(u32 sid)
 static inline void tic(struct msm_vidc_inst *i, enum profiling_points p,
 				 char *b)
 {
-	struct timespec __ddl_tv = { 0 };
-
 	if (!i->debug.pdata[p].name[0])
 		memcpy(i->debug.pdata[p].name, b, 64);
 	if ((msm_vidc_debug & VIDC_PERF) &&
 		i->debug.pdata[p].sampling) {
-		getnstimeofday(&__ddl_tv);
-		i->debug.pdata[p].start =
-			(__ddl_tv.tv_sec * 1000) + (__ddl_tv.tv_nsec / 1000000);
-			i->debug.pdata[p].sampling = false;
+		i->debug.pdata[p].start = ktime_get_ns() / 1000 / 1000;
+		i->debug.pdata[p].sampling = false;
 	}
 }
 
 static inline void toc(struct msm_vidc_inst *i, enum profiling_points p)
 {
-	struct timespec __ddl_tv = { 0 };
-
 	if ((msm_vidc_debug & VIDC_PERF) &&
 		!i->debug.pdata[p].sampling) {
-		getnstimeofday(&__ddl_tv);
-		i->debug.pdata[p].stop = (__ddl_tv.tv_sec * 1000)
-			+ (__ddl_tv.tv_nsec / 1000000);
+		i->debug.pdata[p].stop = ktime_get_ns() / 1000 / 1000;
 		i->debug.pdata[p].cumulative += i->debug.pdata[p].stop -
 			i->debug.pdata[p].start;
 		i->debug.pdata[p].sampling = true;

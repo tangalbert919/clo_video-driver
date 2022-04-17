@@ -2,8 +2,6 @@
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
-
-#include <soc/qcom/subsystem_restart.h>
 #include "msm_vidc_common.h"
 #include "vidc_hfi_api.h"
 #include "vidc_hfi.h"
@@ -2280,7 +2278,6 @@ static void handle_sys_error(enum hal_command_response cmd, void *data)
 	int rc = 0;
 	bool panic = false;
 
-	subsystem_crashed("venus");
 	if (!response) {
 		d_vpr_e("Failed to get valid response for sys error\n");
 		return;

@@ -6,6 +6,7 @@
 #ifndef _MSM_VIDC_H_
 #define _MSM_VIDC_H_
 
+#include <linux/dma-buf.h>
 #include <linux/videodev2.h>
 #include <linux/msm_ion.h>
 #include "vidc/media/msm_vidc_private.h"
@@ -67,6 +68,7 @@ struct msm_smem {
 	u32 refcount;
 	int fd;
 	void *dma_buf;
+	struct dma_buf_map dmabuf_map;
 	void *kvaddr;
 	u32 device_addr;
 	dma_addr_t dma_handle;

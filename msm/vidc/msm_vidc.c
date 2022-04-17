@@ -636,8 +636,8 @@ int msm_vidc_enum_framesizes(void *instance, struct v4l2_frmsizeenum *fsize)
 }
 EXPORT_SYMBOL(msm_vidc_enum_framesizes);
 
-static void *vidc_get_userptr(struct device *dev, unsigned long vaddr,
-			unsigned long size, enum dma_data_direction dma_dir)
+static void *vidc_get_userptr(struct vb2_buffer *vb, struct device *dev,
+		 unsigned long vaddr, unsigned long size)
 {
 	return (void *)0xdeadbeef;
 }
@@ -646,8 +646,8 @@ static void vidc_put_userptr(void *buf_priv)
 {
 }
 
-static void *vidc_attach_dmabuf(struct device *dev, struct dma_buf *dbuf,
-		unsigned long size, enum dma_data_direction dma_dir)
+static void *vidc_attach_dmabuf(struct vb2_buffer *vb, struct device *dev,
+		 struct dma_buf *dbuf, unsigned long size)
 {
 	return (void *)0xdeadbeef;
 }

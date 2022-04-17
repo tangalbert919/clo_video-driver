@@ -4,6 +4,7 @@
  */
 
 #include <linux/dma-buf.h>
+#include <linux/qcom-dma-mapping.h>
 #include <linux/ion.h>
 #include "msm_vidc.h"
 #include "msm_vidc_debug.h"

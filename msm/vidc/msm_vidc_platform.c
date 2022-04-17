@@ -8,7 +8,7 @@
 #include <linux/io.h>
 #include "msm_vidc_internal.h"
 #include "msm_vidc_debug.h"
-
+#include <soc/qcom/of_common.h>
 
 #define DDR_TYPE_LPDDR4 0x6
 #define DDR_TYPE_LPDDR4X 0x7

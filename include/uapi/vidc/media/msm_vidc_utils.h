@@ -106,15 +106,14 @@
 /* missing v4l2 entries start */
 enum v4l2_mpeg_vidc_video_bitrate_mode {
 	V4L2_MPEG_VIDEO_BITRATE_MODE_CBR_VFR =
-		V4L2_MPEG_VIDEO_BITRATE_MODE_CBR + 1,
+	V4L2_MPEG_VIDEO_BITRATE_MODE_CQ + 1,
 	V4L2_MPEG_VIDEO_BITRATE_MODE_MBR,
 	V4L2_MPEG_VIDEO_BITRATE_MODE_MBR_VFR,
-	V4L2_MPEG_VIDEO_BITRATE_MODE_CQ,
 };
 /* missing v4l2 entries end */
 
 /* vendor controls start */
-#define V4L2_CID_MPEG_MSM_VIDC_BASE             (V4L2_CTRL_CLASS_MPEG | 0x2000)
+#define V4L2_CID_MPEG_MSM_VIDC_BASE             (V4L2_CTRL_CLASS_CODEC | 0x2000)
 
 #define V4L2_MPEG_MSM_VIDC_DISABLE 0
 #define V4L2_MPEG_MSM_VIDC_ENABLE 1
