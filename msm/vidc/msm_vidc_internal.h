@@ -38,6 +38,7 @@
 #define SINGLE_OUTPUT_BUFFER 1
 #define MAX_NUM_INPUT_BUFFERS VIDEO_MAX_FRAME // same as VB2_MAX_FRAME
 #define MAX_NUM_OUTPUT_BUFFERS VIDEO_MAX_FRAME // same as VB2_MAX_FRAME
+#define NUM_MBS_UHD (((3840 + 15) >> 4) * ((2160 + 15) >> 4))
 
 #define MAX_SUPPORTED_INSTANCES 16
 #define MAX_SUPPORTED_INSTANCES_24 24
@@ -516,6 +517,7 @@ struct msm_vidc_core {
 	unsigned long min_freq;
 	unsigned long curr_freq;
 	struct msm_vidc_core_ops *core_ops;
+	bool pm_suspended;
 };
 
 struct msm_vidc_inst;

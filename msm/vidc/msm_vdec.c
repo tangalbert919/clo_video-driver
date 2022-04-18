@@ -871,7 +871,8 @@ int msm_vdec_inst_init(struct msm_vidc_inst *inst)
 
 
 	inst->clk_data.frame_rate = (DEFAULT_FPS << 16);
-	inst->clk_data.operating_rate = (DEFAULT_FPS << 16);
+	/* set default operating rate in start_streaming if client doesn't */
+	inst->clk_data.operating_rate = 0;
 	if (core->resources.decode_batching) {
 		inst->batch.enable = true;
 		inst->batch.size = MAX_DEC_BATCH_SIZE;

@@ -883,6 +883,7 @@ static inline int start_streaming(struct msm_vidc_inst *inst)
 	struct hfi_device *hdev;
 	struct hfi_buffer_size_minimum b;
 	struct v4l2_format *f;
+	int width = 0, height = 0;
 
 	s_vpr_h(inst->sid, "%s: inst %pK\n", __func__, inst);
 	hdev = inst->core->device;
@@ -896,6 +897,28 @@ static inline int start_streaming(struct msm_vidc_inst *inst)
 	if (is_encode_session(inst)) {
 		if (!(msm_vidc_set_cvp_metadata(inst)))
 			goto fail_start;
+	}
+
+	/* operating rate is set by client in v4l2_s_ctrl call and used for
+	** clocks and freq calculation. In some cts cases operating rate
+	** isn't set by the app and driver is expected to achieve max fps.
+	** dcvs logic sets clock/freq based on the configured fps and if
+	** operating rate isn't set by client then it will be set to default
+	** in the driver, for UHD and higher res this will result in lower
+	** performance.
+	** If operating rate is not set by client for a decode session of res
+	** UHD and higher then set the operating rate to default value after
+	** setting the session to TURBO mode to allow freq to be set to max.
+	*/
+	if (is_decode_session(inst) && (inst->clk_data.operating_rate == 0)) {
+		f = &inst->fmts[INPUT_PORT].v4l2_fmt;
+		width = f->fmt.pix_mp.width;
+		height = f->fmt.pix_mp.height;
+
+		if (NUM_MBS_PER_FRAME(height, width) >= NUM_MBS_UHD) {
+			inst->flags |= VIDC_TURBO;
+		}
+		inst->clk_data.operating_rate = DEFAULT_FPS << 16;
 	}
 
 	b.buffer_type = HFI_BUFFER_OUTPUT;
