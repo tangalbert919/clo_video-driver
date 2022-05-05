@@ -45,8 +45,7 @@ def gen_video_headers(verbose, gen_dir, headers_install, unifdef, video_include_
     for h in video_include_uapi:
         video_uapi_include_prefix = os.path.join(h.split('/include/uapi/')[0],
                                                  'include',
-                                                 'uapi',
-                                                 'vidc') + os.sep
+                                                 'uapi') + os.sep
 
         if not run_headers_install(
                 verbose, gen_dir, headers_install, unifdef,
