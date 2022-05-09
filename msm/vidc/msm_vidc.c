@@ -1460,7 +1460,9 @@ static int msm_vidc_op_s_ctrl(struct v4l2_ctrl *ctrl)
 
 	int rc = 0;
 	struct msm_vidc_inst *inst;
+#ifdef CONFIG_ALLOW_V4L2_CONTROLS
 	const char *ctrl_name = NULL;
+#endif
 
 	if (!ctrl) {
 		d_vpr_e("%s: invalid parameters for ctrl\n", __func__);
@@ -1477,9 +1479,11 @@ static int msm_vidc_op_s_ctrl(struct v4l2_ctrl *ctrl)
 	rc = msm_vidc_try_set_ctrl(inst, ctrl);
 	if (rc) {
 		s_vpr_e(inst->sid, "Failed setting %x\n", ctrl->id);
+#ifdef CONFIG_ALLOW_V4L2_CONTROLS
 		ctrl_name = v4l2_ctrl_get_name(ctrl->id);
 		s_vpr_e(inst->sid, "Failed setting control: Inst = %pK (%s)\n",
 			inst, ctrl_name ? ctrl_name : "Invalid ctrl");
+#endif
 	}
 
 	return rc;
