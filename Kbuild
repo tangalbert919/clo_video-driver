@@ -14,6 +14,18 @@ LINUXINCLUDE    += -include $(VIDEO_ROOT)/config/diwali_video.h \
                    -I$(VIDEO_ROOT)/driver/platform/diwali/inc
 endif
 
+ifeq ($(CONFIG_ARCH_NEO), y)
+include $(VIDEO_ROOT)/config/neo_video.conf
+LINUXINCLUDE    += -include $(VIDEO_ROOT)/config/neo_video.h \
+                   -I$(VIDEO_ROOT)/driver/platform/neo/inc
+endif
+
+ifeq ($(CONFIG_ARCH_PARROT), y)
+include $(VIDEO_ROOT)/config/parrot_video.conf
+LINUXINCLUDE    += -include $(VIDEO_ROOT)/config/parrot_video.h \
+                   -I$(VIDEO_ROOT)/driver/platform/parrot/inc
+endif
+
 LINUXINCLUDE    += -I$(VIDEO_ROOT)/driver/vidc/inc \
                    -I$(VIDEO_ROOT)/driver/platform/common/inc \
                    -I$(VIDEO_ROOT)/include/uapi/vidc
@@ -31,7 +43,24 @@ ifeq ($(CONFIG_MSM_VIDC_DIWALI), y)
 msm_video-objs += driver/platform/diwali/src/msm_vidc_diwali.o
 endif
 
+ifeq ($(CONFIG_MSM_VIDC_NEO), y)
+msm_video-objs += driver/platform/neo/src/msm_vidc_neo.o
+endif
+
+ifeq ($(CONFIG_MSM_VIDC_PARROT), y)
+msm_video-objs += driver/platform/parrot/src/msm_vidc_parrot.o
+endif
+
 ifeq ($(CONFIG_MSM_VIDC_IRIS2), y)
+LINUXINCLUDE   += -I$(VIDEO_ROOT)/driver/variant/iris2/inc
+msm_video-objs += driver/variant/iris2/src/msm_vidc_buffer_iris2.o \
+                  driver/variant/iris2/src/msm_vidc_power_iris2.o \
+                  driver/variant/iris2/src/msm_vidc_iris2.o
+endif
+
+# As of now for NEO, IRIS3 & IRIS2 have no changes.
+# If any changes are seen, add new iris3 based files later
+ifeq ($(CONFIG_MSM_VIDC_IRIS3), y)
 LINUXINCLUDE   += -I$(VIDEO_ROOT)/driver/variant/iris2/inc
 msm_video-objs += driver/variant/iris2/src/msm_vidc_buffer_iris2.o \
                   driver/variant/iris2/src/msm_vidc_power_iris2.o \

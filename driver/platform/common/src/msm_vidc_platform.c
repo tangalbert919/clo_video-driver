@@ -23,7 +23,13 @@
 #if defined(CONFIG_MSM_VIDC_DIWALI)
 #include "msm_vidc_diwali.h"
 #endif
-#if defined(CONFIG_MSM_VIDC_IRIS2)
+#if defined(CONFIG_MSM_VIDC_PARROT)
+#include "msm_vidc_parrot.h"
+#endif
+#if defined(CONFIG_MSM_VIDC_NEO)
+#include "msm_vidc_neo.h"
+#endif
+#if defined(CONFIG_MSM_VIDC_IRIS2) || defined(CONFIG_MSM_VIDC_IRIS3)
 #include "msm_vidc_iris2.h"
 #endif
 
@@ -190,11 +196,31 @@ static int msm_vidc_deinit_platform_variant(struct msm_vidc_core *core, struct d
 		return rc;
 	}
 #endif
+
 #if defined(CONFIG_MSM_VIDC_DIWALI)
 	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-diwali")) {
 		rc = msm_vidc_deinit_platform_diwali(core, dev);
 		if (rc)
 			d_vpr_e("%s: failed msm-vidc-diwali with %d\n",
+					__func__, rc);
+		return rc;
+	}
+#endif
+
+#if defined(CONFIG_MSM_VIDC_NEO)
+	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-neo")) {
+		rc = msm_vidc_deinit_platform_neo(core, dev);
+		if (rc)
+			d_vpr_e("%s: failed msm-vidc-neo with %d\n",
+				__func__, rc);
+		return rc;
+	}
+#endif
+#if defined(CONFIG_MSM_VIDC_PARROT)
+	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-parrot")) {
+		rc = msm_vidc_deinit_platform_parrot(core, dev);
+		if (rc)
+			d_vpr_e("%s: failed msm-vidc-parrot with %d\n",
 				__func__, rc);
 		return rc;
 	}
@@ -223,11 +249,31 @@ static int msm_vidc_init_platform_variant(struct msm_vidc_core *core, struct dev
 		return rc;
 	}
 #endif
+
 #if defined(CONFIG_MSM_VIDC_DIWALI)
 	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-diwali")) {
 		rc = msm_vidc_init_platform_diwali(core, dev);
 		if (rc)
 			d_vpr_e("%s: failed msm-vidc-diwali with %d\n",
+				__func__, rc);
+		return rc;
+	}
+#endif
+#if defined(CONFIG_MSM_VIDC_PARROT)
+	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-parrot")) {
+		rc = msm_vidc_init_platform_parrot(core, dev);
+		if (rc)
+			d_vpr_e("%s: failed msm-vidc-parrot with %d\n",
+				__func__, rc);
+		return rc;
+	}
+#endif
+
+#if defined(CONFIG_MSM_VIDC_NEO)
+	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-neo")) {
+		rc = msm_vidc_init_platform_neo(core, dev);
+		if (rc)
+			d_vpr_e("%s: failed msm-vidc-neo with %d\n",
 				__func__, rc);
 		return rc;
 	}
@@ -255,6 +301,16 @@ static int msm_vidc_deinit_vpu(struct msm_vidc_core *core, struct device *dev)
 				__func__, rc);
 	}
 #endif
+
+#if defined(CONFIG_MSM_VIDC_IRIS3)
+	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-iris3")) {
+		rc = msm_vidc_deinit_iris2(core);
+		if (rc)
+			d_vpr_e("%s: failed msm-vidc-iris2 with %d\n",
+				__func__, rc);
+	}
+#endif
+
 	return rc;
 }
 
@@ -275,6 +331,16 @@ static int msm_vidc_init_vpu(struct msm_vidc_core *core, struct device *dev)
 				__func__, rc);
 	}
 #endif
+
+#if defined(CONFIG_MSM_VIDC_IRIS3)
+	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc-iris3")) {
+		rc = msm_vidc_init_iris2(core);
+		if (rc)
+			d_vpr_e("%s: failed msm-vidc-iris2 with %d\n",
+				__func__, rc);
+	}
+#endif
+
 	return rc;
 }
 
