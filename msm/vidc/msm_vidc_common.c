@@ -1416,11 +1416,9 @@ static int msm_vidc_comm_update_ctrl(struct msm_vidc_inst *inst,
 	 * For menu controls the step value is interpreted
 	 * as a menu_skip_mask.
 	 */
-#ifdef CONFIG_ALLOW_V4L2_CONTROLS
 	rc = v4l2_ctrl_modify_range(ctrl, cap->min, cap->max,
 			is_menu ? ctrl->menu_skip_mask : cap->step_size,
 			cap->default_value);
-#endif
 	if (rc) {
 		s_vpr_e(inst->sid,
 			"%s: failed: control name %s, min %d, max %d, %s %x, default_value %d\n",
@@ -1435,9 +1433,7 @@ static int msm_vidc_comm_update_ctrl(struct msm_vidc_inst *inst,
 	 * v4l2_ctrl_modify_range() is not updating default_value,
 	 * so use v4l2_ctrl_s_ctrl() to update it.
 	 */
-#ifdef CONFIG_ALLOW_V4L2_CONTROLS
 	rc = v4l2_ctrl_s_ctrl(ctrl, cap->default_value);
-#endif
 	if (rc) {
 		s_vpr_e(inst->sid, "%s: failed s_ctrl: %s with value %d\n",
 			__func__, ctrl->name, cap->default_value);
