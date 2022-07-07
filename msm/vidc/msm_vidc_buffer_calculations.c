@@ -1441,7 +1441,8 @@ static inline u32 calculate_enc_scratch_size(struct msm_vidc_inst *inst,
 		bitstream_size = aligned_width * aligned_height * 3;
 		bitbin_size = ALIGN(bitstream_size, VENUS_DMA_ALIGNMENT);
 	}
-	if (aligned_width * aligned_height >= 3840 * 2160)
+	//Resolution and division are modified for kona target
+	if (aligned_width * aligned_height >= 7680 * 4320)
 		size_singlePipe = bitbin_size / num_vpp_pipes;
 	else if (num_vpp_pipes > 2)
 		size_singlePipe = bitbin_size / 2;
