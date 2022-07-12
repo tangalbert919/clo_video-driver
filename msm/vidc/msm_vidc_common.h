@@ -272,12 +272,7 @@ static inline int msm_comm_g_ctrl(struct msm_vidc_inst *inst,
 static inline int msm_comm_s_ctrl(struct msm_vidc_inst *inst,
 		struct v4l2_control *ctrl)
 {
-#ifdef CONFIG_ALLOW_V4L2_CONTROLS
 	return v4l2_s_ctrl(NULL, &inst->ctrl_handler, ctrl);
-#else
-	s_vpr_h(inst->sid,"CONFIG_ALLOW_V4L2_CONTROLS is not defined");
-	return 0;
-#endif
 }
 
 bool vidc_scalar_enabled(struct msm_vidc_inst *inst);
