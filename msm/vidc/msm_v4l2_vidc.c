@@ -328,6 +328,7 @@ static int msm_vidc_initialize_core(struct platform_device *pdev,
 
 	INIT_DELAYED_WORK(&core->fw_unload_work, msm_vidc_fw_unload_handler);
 	INIT_WORK(&core->ssr_work, msm_vidc_ssr_handler);
+	INIT_WORK(&core->restore_work, msm_comm_load_fw);
 
 	msm_vidc_init_core_clk_ops(core);
 	return rc;
@@ -803,6 +804,31 @@ static int msm_vidc_pm_resume(struct device *dev)
 	return 0;
 }
 
+#ifdef CONFIG_HIBERNAITON
+static int msm_vidc_pm_restore(struct device *dev)
+{
+	struct msm_vidc_core *core = NULL;
+	place_marker("vidc restored");
+	d_vpr_h("%s\n", __func__);
+
+	if (!dev || !dev->driver)
+	{
+		d_vpr_e("%s: invalid device or device driver\n", __func__);
+		return -EINVAL;
+	}
+	core = dev_get_drvdata(dev);
+	if (!core)
+	{
+		d_vpr_e("%s: invalid core\n", __func__);
+		return -EINVAL;
+	}
+	cancel_work_sync(&core->restore_work);
+	schedule_work(&core->restore_work);
+
+	return 0;
+}
+#endif
+
 static int msm_vidc_pm_freeze(struct device *dev)
 {
 	int rc = 0;
@@ -834,6 +860,9 @@ static const struct dev_pm_ops msm_vidc_pm_ops = {
 	.suspend = msm_vidc_pm_suspend,
 	.resume  = msm_vidc_pm_resume,
 	.freeze  = msm_vidc_pm_freeze,
+#ifdef CONFIG_HIBERNAITON
+	.restore = msm_vidc_pm_restore,
+#endif
 };
 
 MODULE_DEVICE_TABLE(of, msm_vidc_dt_match);

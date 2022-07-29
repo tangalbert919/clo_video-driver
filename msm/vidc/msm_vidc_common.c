@@ -5840,6 +5840,35 @@ void msm_vidc_ssr_handler(struct work_struct *work)
 	mutex_unlock(&core->lock);
 }
 
+void msm_comm_load_fw(struct work_struct *work)
+{
+	int rc = 0;
+	struct hfi_device *hdev;
+	struct msm_vidc_core *core;
+
+	core = container_of(work, struct msm_vidc_core, restore_work);
+	if (!core || !core->device) {
+		d_vpr_e("%s: invalid params %pK\n", __func__, core);
+		return;
+	}
+	hdev = core->device;
+	mutex_lock(&core->lock);
+	if (core->state >= VIDC_CORE_INIT) {
+		d_vpr_h("Video core: %d is already in state: %d\n", core->id, core->state);
+		goto unlock;
+	}
+	d_vpr_h("%s: core %pK\n", __func__, core);
+	rc = call_hfi_op(hdev, load_fw, hdev->hfi_device_data);
+	if (rc) {
+		d_vpr_e("Failed to init core, id = %d\n", core->id);
+		goto unlock;
+	}
+
+unlock:
+	mutex_unlock(&core->lock);
+	return;
+}
+
 static int msm_vidc_check_mbpf_supported(struct msm_vidc_inst *inst)
 {
 	u32 mbpf = 0;
