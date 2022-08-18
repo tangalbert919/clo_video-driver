@@ -705,6 +705,7 @@ struct hfi_device {
 	int (*suspend)(void *dev);
 	int (*flush_debug_queue)(void *dev);
 	int (*noc_error_info)(void *dev);
+	int (*load_fw)(void *device);
 	enum hal_default_properties (*get_default_properties)(void *dev);
 };
 

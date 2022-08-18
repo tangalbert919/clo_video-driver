@@ -2046,6 +2046,28 @@ static int __sys_set_power_control(struct venus_hfi_device *device,
 	return 0;
 }
 
+static int venus_hfi_load_fw(void *device)
+{
+	int rc = 0;
+	struct venus_hfi_device *dev;
+
+	if (!device) {
+		d_vpr_e("Invalid device\n");
+		return -ENODEV;
+	}
+	dev = device;
+	mutex_lock(&dev->lock);
+	rc = __load_fw(dev);
+	if (rc) {
+		d_vpr_e("Failed to load Venus FW\n");
+		goto unlock;
+	}
+
+unlock:
+	mutex_unlock(&dev->lock);
+	return rc;
+}
+
 static int venus_hfi_core_init(void *device)
 {
 	int rc = 0;
@@ -4475,6 +4497,11 @@ static int __load_fw(struct venus_hfi_device *device)
 {
 	int rc = 0;
 
+	if(!device || device->fw_already_loaded)
+	{
+		d_vpr_h("%s, firmware already loaded\n", __func__);
+		return 0;
+	}
 	/* Initialize resources */
 	rc = __init_resources(device, device->res);
 	if (rc) {
@@ -4527,6 +4554,7 @@ static int __load_fw(struct venus_hfi_device *device)
 	if (__enable_hw_power_collapse(device, DEFAULT_SID))
 		d_vpr_e("Failed to enabled inter-frame PC\n");
 
+	device->fw_already_loaded = true;
 	trace_msm_v4l2_vidc_fw_load_end("msm_v4l2_vidc venus_fw load end");
 	return rc;
 fail_protect_mem:
@@ -4558,6 +4586,7 @@ static void __unload_fw(struct venus_hfi_device *device)
 	device->resources.fw.cookie = NULL;
 	__deinit_resources(device);
 
+	device->fw_already_loaded = false;
 	d_vpr_h("Firmware unloaded successfully\n");
 }
 
@@ -4879,6 +4908,7 @@ static void venus_init_hfi_callbacks(struct hfi_device *hdev)
 	hdev->suspend = venus_hfi_suspend;
 	hdev->flush_debug_queue = venus_hfi_flush_debug_queue;
 	hdev->noc_error_info = venus_hfi_noc_error_info;
+	hdev->load_fw = venus_hfi_load_fw;
 }
 
 int venus_hfi_initialize(struct hfi_device *hdev, u32 device_id,

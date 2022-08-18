@@ -44,6 +44,15 @@ ifeq ($(CONFIG_ARCH_SM6150), y)
 LINUXINCLUDE    += -include $(srctree)/techpack/video/config/sm6150vidconf.h
 endif
 
+# auto-detect subdirs
+ifeq ($(CONFIG_ARCH_KONA), y)
+include $(srctree)/techpack/video/config/konavid.conf
+endif
+
+ifeq ($(CONFIG_ARCH_KONA), y)
+LINUXINCLUDE    += -include $(srctree)/techpack/video/config/konavidconf.h
+endif
+
 LINUXINCLUDE    += -I$(srctree)/techpack/video/include \
                    -I$(srctree)/techpack/video/include/uapi
 
