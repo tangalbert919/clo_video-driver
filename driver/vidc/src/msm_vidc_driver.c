@@ -89,6 +89,7 @@ static const struct msm_vidc_cap_name cap_name_arr[] = {
 	{SLICE_INTERFACE,                "SLICE_INTERFACE"            },
 	{HEADER_MODE,                    "HEADER_MODE"                },
 	{PREPEND_SPSPPS_TO_IDR,          "PREPEND_SPSPPS_TO_IDR"      },
+	{VUI_TIMING_INFO,                "VUI_TIMING_INFO"            },
 	{META_SEQ_HDR_NAL,               "META_SEQ_HDR_NAL"           },
 	{WITHOUT_STARTCODE,              "WITHOUT_STARTCODE"          },
 	{NAL_LENGTH_FIELD,               "NAL_LENGTH_FIELD"           },
@@ -519,7 +520,7 @@ enum msm_vidc_codec_type v4l2_codec_to_driver(u32 v4l2_codec, const char *func)
 		codec = MSM_VIDC_HEIC;
 		break;
 	default:
-		d_vpr_e("%s: invalid v4l2 codec %#x\n", func, v4l2_codec);
+		d_vpr_h("%s: invalid v4l2 codec %#x\n", func, v4l2_codec);
 		break;
 	}
 	return codec;
@@ -1547,7 +1548,7 @@ enum msm_vidc_allow msm_vidc_allow_streamoff(struct msm_vidc_inst *inst, u32 typ
 		else if (!inst->vb2q[OUTPUT_META_PORT].streaming)
 			allow = MSM_VIDC_IGNORE;
 	}
-	if (allow != MSM_VIDC_ALLOW)
+	if (allow != MSM_VIDC_ALLOW && allow != MSM_VIDC_IGNORE)
 		i_vpr_e(inst, "%s: type %d is %s in state %s\n",
 				__func__, type, allow_name(allow),
 				state_name(inst->state));
@@ -1696,8 +1697,9 @@ static int msm_vidc_discard_pending_opsc(struct msm_vidc_inst *inst)
 	list_for_each_entry_safe(resp_work, dummy,
 				&inst->response_works, list) {
 		if (resp_work->type == RESP_WORK_OUTPUT_PSC) {
-			i_vpr_h(inst,
+			i_vpr_e(inst,
 				"%s: discard pending output psc\n", __func__);
+			inst->psc_or_last_flag_discarded = true;
 			list_del(&resp_work->list);
 			kfree(resp_work->data);
 			kfree(resp_work);
@@ -1723,11 +1725,12 @@ static int msm_vidc_discard_pending_ipsc(struct msm_vidc_inst *inst)
 	list_for_each_entry_safe(resp_work, dummy,
 			&inst->response_works, list) {
 		if (resp_work->type == RESP_WORK_INPUT_PSC) {
-			i_vpr_h(inst,
+			i_vpr_e(inst,
 				"%s: discard pending input psc\n", __func__);
 
 			/* override the psc properties again if ipsc discarded */
 			inst->ipsc_properties_set = false;
+			inst->psc_or_last_flag_discarded = true;
 
 			list_del(&resp_work->list);
 			kfree(resp_work->data);

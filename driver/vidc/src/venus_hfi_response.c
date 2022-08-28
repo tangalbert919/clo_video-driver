@@ -371,6 +371,9 @@ static int handle_session_error(struct msm_vidc_inst *inst,
 	case HFI_ERROR_FATAL:
 		error = "fatal error";
 		break;
+	case HFI_ERROR_STREAM_UNSUPPORTED:
+		error = "stream unsupported";
+		break;
 	default:
 		error = "unknown";
 		break;
@@ -857,6 +860,7 @@ static int handle_output_buffer(struct msm_vidc_inst *inst,
 			i_vpr_e(inst, "%s: reset data size to zero for last flag buffer\n",
 				__func__);
 			buffer->data_size = 0;
+			buf->data_size = 0;
 		}
 		if (buffer->flags & HFI_BUF_FW_FLAG_READONLY) {
 			i_vpr_e(inst, "%s: reset RO flag for last flag buffer\n",
@@ -864,6 +868,7 @@ static int handle_output_buffer(struct msm_vidc_inst *inst,
 			buffer->flags &= ~HFI_BUF_FW_FLAG_READONLY;
 		}
 		if (!msm_vidc_allow_last_flag(inst)) {
+			inst->psc_or_last_flag_discarded = true;
 			i_vpr_e(inst, "%s: reset last flag for last flag buffer\n",
 				__func__);
 			buffer->flags &= ~HFI_BUF_FW_FLAG_LAST;
@@ -1012,8 +1017,12 @@ static int handle_output_metadata_buffer(struct msm_vidc_inst *inst,
 	buf->attr |= MSM_VIDC_ATTR_DEQUEUED;
 	buf->flags = 0;
 	if (buffer->flags & HFI_BUF_FW_FLAG_LAST) {
-		if (!msm_vidc_allow_last_flag(inst))
+		if (!msm_vidc_allow_last_flag(inst)) {
+			inst->psc_or_last_flag_discarded = true;
+			i_vpr_e(inst, "%s: reset last flag for last flag metadata buffer\n",
+				__func__);
 			buffer->flags &= ~HFI_BUF_FW_FLAG_LAST;
+		}
 	}
 	if (buffer->flags & HFI_BUF_FW_FLAG_LAST)
 		buf->flags |= MSM_VIDC_BUF_FLAG_LAST;
@@ -1701,6 +1710,9 @@ void handle_session_response_work_handler(struct work_struct *work)
 			} else if (allow == MSM_VIDC_DISCARD) {
 				/* if ipsc is discarded then override the psc properties again */
 				inst->ipsc_properties_set = false;
+				inst->psc_or_last_flag_discarded = true;
+				i_vpr_e(inst, "%s: ipsc discarded. state %s\n",
+					__func__, state_name(inst->state));
 				/* discard current entry processing */
 				break;
 			} else if (allow == MSM_VIDC_ALLOW) {
@@ -1728,6 +1740,10 @@ void handle_session_response_work_handler(struct work_struct *work)
 				rc = msm_vidc_state_change_last_flag(inst);
 				if (rc)
 					msm_vidc_change_inst_state(inst, MSM_VIDC_ERROR, __func__);
+			} else {
+				i_vpr_e(inst, "%s: last flag discarded. state %s\n",
+					__func__, state_name(inst->state));
+				inst->psc_or_last_flag_discarded = true;
 			}
 			break;
 		default:
@@ -1812,7 +1828,7 @@ static int handle_session_response(struct msm_vidc_core *core,
 
 	inst = get_inst(core, hdr->session_id);
 	if (!inst) {
-		d_vpr_e("%s: Invalid params\n", __func__);
+		d_vpr_e("%s: Invalid inst\n", __func__);
 		return -EINVAL;
 	}
 
