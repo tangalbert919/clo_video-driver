@@ -522,22 +522,15 @@ int msm_smem_cache_operations(struct dma_buf *dbuf,
 	unsigned long size, u32 sid)
 {
 	int rc = 0;
-	unsigned long flags = 0;
 
 	if (!dbuf) {
 		s_vpr_e(sid, "%s: invalid params\n", __func__);
 		return -EINVAL;
 	}
 
-	/* Return if buffer doesn't support caching */
-	rc = dma_buf_get_flags(dbuf, &flags);
-	if (rc) {
-		s_vpr_e(sid, "%s: dma_buf_get_flags failed, err %d\n",
-			__func__, rc);
-		return rc;
-	} else if (!(flags & ION_FLAG_CACHED)) {
-		return rc;
-	}
+	/* In dmabuf driver, below calls internally check if the buffer
+	passed is cached/uncached. Cache invalidate/flush operations are
+	performed only if the buffer is cached. */
 
 	switch (cache_op) {
 	case SMEM_CACHE_CLEAN:
