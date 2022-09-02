@@ -371,7 +371,7 @@ typedef HFI_U32 HFI_BOOL;
 	{    \
 		HFI_U32 _height = HFI_ALIGN(frame_height, \
 				BUFFER_ALIGNMENT_32_BYTES);  \
-		_size = MIN((((_height + 15) >> 4) * 3 * 4), H264D_MAX_SLICE) *\
+		_size = MIN((((_height + 15) >> 4) * 48), H264D_MAX_SLICE) *\
 					  SIZE_H264D_BSE_CMD_PER_BUF; \
 	} while (0)
 
@@ -380,7 +380,7 @@ typedef HFI_U32 HFI_BOOL;
 	{    \
 		HFI_U32 _height = HFI_ALIGN(frame_height, \
 				BUFFER_ALIGNMENT_32_BYTES); \
-		_size = MIN((((_height + 15) >> 4) * 3 * 4), H264D_MAX_SLICE) * \
+		_size = MIN((((_height + 15) >> 4) * 48), H264D_MAX_SLICE) * \
 					SIZE_H264D_VPP_CMD_PER_BUF; \
 		if (_size > VPP_CMD_MAX_SIZE) { _size = VPP_CMD_MAX_SIZE; } \
 	} while (0)
@@ -1177,23 +1177,26 @@ _yuv_bufcount_min, is_opb, num_vpp_pipes)           \
 			rc_type, is_ten_bit) \
 	do \
 	{ \
-		HFI_U32 aligned_width, aligned_height, bitstream_size; \
+		HFI_U32 aligned_width, aligned_height, bitstream_size, yuv_size; \
 		aligned_width = HFI_ALIGN(frame_width, 32); \
 		aligned_height = HFI_ALIGN(frame_height, 32); \
 		bitstream_size = aligned_width * aligned_height * 3; \
+		yuv_size = (aligned_width * aligned_height * 3) >> 1; \
 		if (aligned_width * aligned_height > (4096 * 2176)) \
 		{ \
+		    /* bitstream_size = 0.25 * yuv_size; */ \
 			bitstream_size = (bitstream_size >> 3); \
 		} \
-		else if (bitstream_size > (1280 * 720)) \
+		else if (aligned_width * aligned_height > (1280 * 720)) \
 		{ \
+		    /* bitstream_size = 0.5 * yuv_size; */ \
 			bitstream_size = (bitstream_size >> 2); \
 		} \
 		else \
 		{ \
-			bitstream_size = (bitstream_size << 1);\
+		    /* bitstream_size = 2 * yuv_size; */ \
 		} \
-		if ((rc_type == HFI_RC_CQ) || (rc_type == HFI_RC_OFF))  \
+		if (((rc_type == HFI_RC_CQ) || (rc_type == HFI_RC_OFF)) && (bitstream_size < yuv_size))  \
 		{ \
 			bitstream_size = (bitstream_size << 1);\
 		} \

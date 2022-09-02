@@ -1741,6 +1741,10 @@ static int __init_subcaches(struct msm_vidc_core *core)
 			sinfo->subcache = llcc_slice_getd(LLCC_VIDSC1);
 		} else if (!strcmp("vidscfw", sinfo->name)) {
 			sinfo->subcache = llcc_slice_getd(LLCC_VIDFW);
+		} else if (!strcmp("vidvsp", sinfo->name)) {
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,15,0))
+			sinfo->subcache = llcc_slice_getd(LLCC_VIDVSP);
+#endif
 		} else {
 			d_vpr_e("Invalid subcache name %s\n",
 					sinfo->name);
@@ -2209,6 +2213,11 @@ void venus_hfi_interface_queues_deinit(struct msm_vidc_core *core)
 
 	d_vpr_h("%s()\n", __func__);
 
+	if (!core->iface_q_table.align_virtual_addr) {
+		d_vpr_h("%s: queues already deallocated\n", __func__);
+		return;
+	}
+
 	msm_vidc_memory_unmap(core, &core->iface_q_table.map);
 	msm_vidc_memory_free(core, &core->iface_q_table.alloc);
 	msm_vidc_memory_unmap(core, &core->sfr.map);
@@ -2227,11 +2236,49 @@ void venus_hfi_interface_queues_deinit(struct msm_vidc_core *core)
 	core->sfr.align_device_addr = 0;
 }
 
+static int venus_hfi_reset_queue_header(struct msm_vidc_core *core)
+{
+	struct msm_vidc_iface_q_info *iface_q;
+	struct hfi_queue_header *q_hdr;
+	int i, rc = 0;
+
+	if (!core) {
+		d_vpr_e("%s: invalid param\n", __func__);
+		return -EINVAL;
+	}
+
+	for (i = 0; i < VIDC_IFACEQ_NUMQ; i++) {
+		iface_q = &core->iface_queues[i];
+		__set_queue_hdr_defaults(iface_q->q_hdr);
+	}
+
+	iface_q = &core->iface_queues[VIDC_IFACEQ_CMDQ_IDX];
+	q_hdr = iface_q->q_hdr;
+	q_hdr->qhdr_start_addr = iface_q->q_array.align_device_addr;
+	q_hdr->qhdr_type |= HFI_Q_ID_HOST_TO_CTRL_CMD_Q;
+
+	iface_q = &core->iface_queues[VIDC_IFACEQ_MSGQ_IDX];
+	q_hdr = iface_q->q_hdr;
+	q_hdr->qhdr_start_addr = iface_q->q_array.align_device_addr;
+	q_hdr->qhdr_type |= HFI_Q_ID_CTRL_TO_HOST_MSG_Q;
+
+	iface_q = &core->iface_queues[VIDC_IFACEQ_DBGQ_IDX];
+	q_hdr = iface_q->q_hdr;
+	q_hdr->qhdr_start_addr = iface_q->q_array.align_device_addr;
+	q_hdr->qhdr_type |= HFI_Q_ID_CTRL_TO_HOST_DEBUG_Q;
+	/*
+	 * Set receive request to zero on debug queue as there is no
+	 * need of interrupt from video hardware for debug messages
+	 */
+	q_hdr->qhdr_rx_req = 0;
+
+	return rc;
+}
+
 int venus_hfi_interface_queues_init(struct msm_vidc_core *core)
 {
 	int rc = 0;
 	struct hfi_queue_table_header *q_tbl_hdr;
-	struct hfi_queue_header *q_hdr;
 	struct msm_vidc_iface_q_info *iface_q;
 	struct msm_vidc_alloc alloc;
 	struct msm_vidc_map map;
@@ -2239,6 +2286,12 @@ int venus_hfi_interface_queues_init(struct msm_vidc_core *core)
 	u32 i;
 
 	d_vpr_h("%s()\n", __func__);
+
+	if (core->iface_q_table.align_virtual_addr) {
+		d_vpr_h("%s: queues already allocated\n", __func__);
+		venus_hfi_reset_queue_header(core);
+		return 0;
+	}
 
 	memset(&alloc, 0, sizeof(alloc));
 	alloc.type       = MSM_VIDC_BUF_QUEUE;
@@ -2277,7 +2330,6 @@ int venus_hfi_interface_queues_init(struct msm_vidc_core *core)
 		offset += iface_q->q_array.mem_size;
 		iface_q->q_hdr = VIDC_IFACEQ_GET_QHDR_START_ADDR(
 				core->iface_q_table.align_virtual_addr, i);
-		__set_queue_hdr_defaults(iface_q->q_hdr);
 	}
 
 	q_tbl_hdr = (struct hfi_queue_table_header *)
@@ -2291,25 +2343,12 @@ int venus_hfi_interface_queues_init(struct msm_vidc_core *core)
 	q_tbl_hdr->qtbl_num_q = VIDC_IFACEQ_NUMQ;
 	q_tbl_hdr->qtbl_num_active_q = VIDC_IFACEQ_NUMQ;
 
-	iface_q = &core->iface_queues[VIDC_IFACEQ_CMDQ_IDX];
-	q_hdr = iface_q->q_hdr;
-	q_hdr->qhdr_start_addr = iface_q->q_array.align_device_addr;
-	q_hdr->qhdr_type |= HFI_Q_ID_HOST_TO_CTRL_CMD_Q;
-
-	iface_q = &core->iface_queues[VIDC_IFACEQ_MSGQ_IDX];
-	q_hdr = iface_q->q_hdr;
-	q_hdr->qhdr_start_addr = iface_q->q_array.align_device_addr;
-	q_hdr->qhdr_type |= HFI_Q_ID_CTRL_TO_HOST_MSG_Q;
-
-	iface_q = &core->iface_queues[VIDC_IFACEQ_DBGQ_IDX];
-	q_hdr = iface_q->q_hdr;
-	q_hdr->qhdr_start_addr = iface_q->q_array.align_device_addr;
-	q_hdr->qhdr_type |= HFI_Q_ID_CTRL_TO_HOST_DEBUG_Q;
-	/*
-	 * Set receive request to zero on debug queue as there is no
-	 * need of interrupt from video hardware for debug messages
-	 */
-	q_hdr->qhdr_rx_req = 0;
+	/* reset hfi queue header fields */
+	rc = venus_hfi_reset_queue_header(core);
+	if (rc) {
+		d_vpr_e("%s: init queue header failed\n", __func__);
+		goto fail_alloc_queue;
+	}
 
 	/* sfr buffer */
 	memset(&alloc, 0, sizeof(alloc));
@@ -2456,6 +2495,7 @@ int __load_fw(struct msm_vidc_core *core)
 	d_vpr_h("%s\n", __func__);
 	core->handoff_done = false;
 	core->hw_power_control = false;
+	core->cpu_watchdog = false;
 
 	trace_msm_v4l2_vidc_fw_load("START");
 	rc = __init_resources(core);
@@ -2499,10 +2539,13 @@ int __load_fw(struct msm_vidc_core *core)
 
 	/* configure interface_queues memory to firmware */
 	rc = call_venus_op(core, setup_ucregion_memmap, core);
-	if (rc)
-		return rc;
+	if (rc) {
+		d_vpr_e("%s: failed to setup ucregion\n");
+		goto fail_setup_ucregion;
+	}
 
 	return rc;
+fail_setup_ucregion:
 fail_protect_mem:
 	if (core->dt->fw_cookie)
 		qcom_scm_pas_shutdown(core->dt->fw_cookie);
@@ -2533,6 +2576,8 @@ void __unload_fw(struct msm_vidc_core *core)
 	__venus_power_off(core);
 	__deinit_resources(core);
 
+	core->cpu_watchdog = false;
+
 	d_vpr_h("%s done\n", __func__);
 }
 
@@ -2542,6 +2587,8 @@ static int __response_handler(struct msm_vidc_core *core)
 
 	if (call_venus_op(core, watchdog, core, core->intr_status)) {
 		struct hfi_packet pkt = {.type = HFI_SYS_ERROR_WD_TIMEOUT};
+		core->cpu_watchdog = true;
+		d_vpr_e("%s: CPU WD error received\n", __func__);
 
 		return handle_system_error(core, &pkt);
 	}
@@ -2700,6 +2747,10 @@ int venus_hfi_core_init(struct msm_vidc_core *core)
 	rc = __strict_check(core, __func__);
 	if (rc)
 		return rc;
+
+	rc = venus_hfi_interface_queues_init(core);
+	if (rc)
+		goto error;
 
 	rc = __load_fw(core);
 	if (rc)

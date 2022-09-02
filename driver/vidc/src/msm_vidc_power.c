@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "msm_vidc_power.h"
@@ -148,6 +149,10 @@ static int msm_vidc_set_buses(struct msm_vidc_inst* inst)
 	mutex_lock(&core->lock);
 	curr_time_ns = ktime_get_ns();
 	list_for_each_entry(temp, &core->instances, list) {
+		/* skip for session where no input is there to process */
+		if (!temp->max_input_data_size)
+			continue;
+
 		/* skip inactive session bus bandwidth */
 		if (!is_active_session(temp->last_qbuf_time_ns, curr_time_ns)) {
 			temp->active = false;
@@ -231,6 +236,9 @@ int msm_vidc_scale_buses(struct msm_vidc_inst *inst)
 	vote_data->output_height = out_f->fmt.pix_mp.height;
 	vote_data->lcu_size = (codec == V4L2_PIX_FMT_HEVC ||
 			codec == V4L2_PIX_FMT_VP9) ? 32 : 16;
+	if (codec == V4L2_PIX_FMT_AV1)
+		vote_data->lcu_size =
+			inst->capabilities->cap[SUPER_BLOCK].value ? 128 : 64;
 	vote_data->fps = inst->max_rate;
 
 	if (inst->domain == MSM_VIDC_ENCODER) {
@@ -331,6 +339,10 @@ int msm_vidc_set_clocks(struct msm_vidc_inst* inst)
 	freq = 0;
 	curr_time_ns = ktime_get_ns();
 	list_for_each_entry(temp, &core->instances, list) {
+		/* skip for session where no input is there to process */
+		if (!temp->max_input_data_size)
+			continue;
+
 		/* skip inactive session clock rate */
 		if (!is_active_session(temp->last_qbuf_time_ns, curr_time_ns)) {
 			temp->active = false;
@@ -470,7 +482,10 @@ int msm_vidc_scale_clocks(struct msm_vidc_inst *inst)
 	}
 	core = inst->core;
 
-	if (inst->power.buffer_counter < DCVS_WINDOW || is_image_session(inst)) {
+	if (inst->power.buffer_counter < DCVS_WINDOW ||
+	    is_image_session(inst) ||
+	    is_sub_state(inst, MSM_VIDC_DRC) ||
+	    is_sub_state(inst, MSM_VIDC_DRAIN)) {
 		inst->power.min_freq = msm_vidc_max_freq(inst);
 		inst->power.dcvs_flags = 0;
 	} else if (msm_vidc_clock_voting) {

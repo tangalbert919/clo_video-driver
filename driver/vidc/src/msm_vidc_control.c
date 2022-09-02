@@ -1723,13 +1723,54 @@ int msm_vidc_adjust_chroma_qp_index_offset(void *instance,
 	return 0;
 }
 
+static bool msm_vidc_check_all_layer_bitrate_set(struct msm_vidc_inst *inst)
+{
+	bool layer_bitrate_set = true;
+	u32 cap_id = 0, i, enh_layer_count;
+	u32 layer_br_caps[6] = {L0_BR, L1_BR, L2_BR, L3_BR, L4_BR, L5_BR};
+
+	enh_layer_count = inst->capabilities->cap[ENH_LAYER_COUNT].value;
+
+	for (i = 0; i <= enh_layer_count; i++) {
+		if (i >= ARRAY_SIZE(layer_br_caps))
+			break;
+		cap_id = layer_br_caps[i];
+		if (!(inst->capabilities->cap[cap_id].flags & CAP_FLAG_CLIENT_SET)) {
+			layer_bitrate_set = false;
+			break;
+		}
+	}
+
+	return layer_bitrate_set;
+}
+
+static u32 msm_vidc_get_cumulative_bitrate(struct msm_vidc_inst *inst)
+{
+	int i;
+	u32 cap_id = 0;
+	u32 cumulative_br = 0;
+	s32 enh_layer_count;
+	u32 layer_br_caps[6] = {L0_BR, L1_BR, L2_BR, L3_BR, L4_BR, L5_BR};
+
+	enh_layer_count = inst->capabilities->cap[ENH_LAYER_COUNT].value;
+
+	for (i = 0; i <= enh_layer_count; i++) {
+		if (i >= ARRAY_SIZE(layer_br_caps))
+			break;
+		cap_id = layer_br_caps[i];
+		cumulative_br += inst->capabilities->cap[cap_id].value;
+	}
+
+	return cumulative_br;
+}
+
 int msm_vidc_adjust_slice_count(void *instance, struct v4l2_ctrl *ctrl)
 {
 	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
 	struct msm_vidc_inst_capability *capability;
 	struct v4l2_format *output_fmt;
-	s32 adjusted_value, rc_type = -1, slice_mode, all_intra = 0;
-	u32 slice_val, mbpf = 0, mbps = 0, max_mbpf = 0, max_mbps = 0;
+	s32 adjusted_value, rc_type = -1, slice_mode, all_intra, enh_layer_count = 0;
+	u32 slice_val, mbpf = 0, mbps = 0, max_mbpf = 0, max_mbps = 0, bitrate = 0;
 	u32 update_cap, max_avg_slicesize, output_width, output_height;
 	u32 min_width, min_height, max_width, max_height, fps;
 
@@ -1748,8 +1789,23 @@ int msm_vidc_adjust_slice_count(void *instance, struct v4l2_ctrl *ctrl)
 	if (msm_vidc_get_parent_value(inst, SLICE_MODE,
 		BITRATE_MODE, &rc_type, __func__) ||
 		msm_vidc_get_parent_value(inst, SLICE_MODE,
-		ALL_INTRA, &all_intra, __func__))
+		ALL_INTRA, &all_intra, __func__) ||
+		msm_vidc_get_parent_value(inst, SLICE_MODE,
+		ENH_LAYER_COUNT, &enh_layer_count, __func__))
 		return -EINVAL;
+
+	if (capability->cap[BIT_RATE].flags & CAP_FLAG_CLIENT_SET) {
+		bitrate = capability->cap[BIT_RATE].value;
+	} else if (msm_vidc_check_all_layer_bitrate_set(inst)) {
+		bitrate = msm_vidc_get_cumulative_bitrate(inst);
+	} else {
+		adjusted_value = V4L2_MPEG_VIDEO_MULTI_SLICE_MODE_SINGLE;
+		update_cap = SLICE_MODE;
+		i_vpr_h(inst,
+			"%s: client did not set bitrate & layerwise bitrates\n",
+			__func__);
+		goto exit;
+	}
 
 	fps = capability->cap[FRAME_RATE].value >> 16;
 	if (fps > MAX_SLICES_FRAME_RATE ||
@@ -1818,8 +1874,7 @@ int msm_vidc_adjust_slice_count(void *instance, struct v4l2_ctrl *ctrl)
 		slice_val = capability->cap[SLICE_MAX_BYTES].value;
 		update_cap = SLICE_MAX_BYTES;
 		if (rc_type != HFI_RC_OFF) {
-			max_avg_slicesize = ((capability->cap[BIT_RATE].value /
-				fps) / 8) /
+			max_avg_slicesize = ((bitrate / fps) / 8) /
 				MAX_SLICES_PER_FRAME;
 			slice_val = max(slice_val, max_avg_slicesize);
 		}
@@ -1896,7 +1951,7 @@ static int msm_vidc_adjust_static_layer_count_and_type(struct msm_vidc_inst *ins
 			inst->hfi_layer_type = HFI_HIER_P_HYBRID_LTR;
 	}
 
-	/* sanitize layer count based on layer type and codec */
+	/* sanitize layer count based on layer type and codec, and rc type */
 	if (inst->hfi_layer_type == HFI_HIER_B) {
 		if (layer_count > MAX_ENH_LAYER_HB)
 			layer_count = MAX_ENH_LAYER_HB;
@@ -1907,9 +1962,14 @@ static int msm_vidc_adjust_static_layer_count_and_type(struct msm_vidc_inst *ins
 		if (inst->codec == MSM_VIDC_H264) {
 			if (layer_count > MAX_AVC_ENH_LAYER_SLIDING_WINDOW)
 				layer_count = MAX_AVC_ENH_LAYER_SLIDING_WINDOW;
-		} else {
-			if (layer_count > MAX_HEVC_ENH_LAYER_SLIDING_WINDOW)
-				layer_count = MAX_HEVC_ENH_LAYER_SLIDING_WINDOW;
+		} else if (inst->codec == MSM_VIDC_HEVC) {
+			if (inst->hfi_rc_type == HFI_RC_VBR_CFR) {
+				if (layer_count > MAX_HEVC_VBR_ENH_LAYER_SLIDING_WINDOW)
+					layer_count = MAX_HEVC_VBR_ENH_LAYER_SLIDING_WINDOW;
+			} else {
+				if (layer_count > MAX_HEVC_NON_VBR_ENH_LAYER_SLIDING_WINDOW)
+					layer_count = MAX_HEVC_NON_VBR_ENH_LAYER_SLIDING_WINDOW;
+			}
 		}
 	}
 
@@ -2038,47 +2098,6 @@ int msm_vidc_adjust_b_frame(void *instance, struct v4l2_ctrl *ctrl)
 exit:
 	msm_vidc_update_cap_value(inst, B_FRAME, adjusted_value, __func__);
 	return 0;
-}
-
-static bool msm_vidc_check_all_layer_bitrate_set(struct msm_vidc_inst *inst)
-{
-	bool layer_bitrate_set = true;
-	u32 cap_id = 0, i, enh_layer_count;
-	u32 layer_br_caps[6] = {L0_BR, L1_BR, L2_BR, L3_BR, L4_BR, L5_BR};
-
-	enh_layer_count = inst->capabilities->cap[ENH_LAYER_COUNT].value;
-
-	for (i = 0; i <= enh_layer_count; i++) {
-		if (i >= ARRAY_SIZE(layer_br_caps))
-			break;
-		cap_id = layer_br_caps[i];
-		if (!(inst->capabilities->cap[cap_id].flags & CAP_FLAG_CLIENT_SET)) {
-			layer_bitrate_set = false;
-			break;
-		}
-	}
-
-	return layer_bitrate_set;
-}
-
-static u32 msm_vidc_get_cumulative_bitrate(struct msm_vidc_inst *inst)
-{
-	int i;
-	u32 cap_id = 0;
-	u32 cumulative_br = 0;
-	s32 enh_layer_count;
-	u32 layer_br_caps[6] = {L0_BR, L1_BR, L2_BR, L3_BR, L4_BR, L5_BR};
-
-	enh_layer_count = inst->capabilities->cap[ENH_LAYER_COUNT].value;
-
-	for (i = 0; i <= enh_layer_count; i++) {
-		if (i >= ARRAY_SIZE(layer_br_caps))
-			break;
-		cap_id = layer_br_caps[i];
-		cumulative_br += inst->capabilities->cap[cap_id].value;
-	}
-
-	return cumulative_br;
 }
 
 int msm_vidc_adjust_bitrate(void *instance, struct v4l2_ctrl *ctrl)
@@ -3015,6 +3034,41 @@ int msm_vidc_adjust_dec_outbuf_fence(void *instance, struct v4l2_ctrl *ctrl)
 	}
 
 	msm_vidc_update_cap_value(inst, META_OUTBUF_FENCE,
+		adjusted_value, __func__);
+
+	return 0;
+}
+
+int msm_vidc_adjust_dec_slice_mode(void *instance, struct v4l2_ctrl *ctrl)
+{
+	struct msm_vidc_inst_capability *capability;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *) instance;
+	u32 adjusted_value = 0;
+	s32 low_latency = -1;
+	s32 picture_order = -1;
+	s32 outbuf_fence = V4L2_MPEG_VIDC_META_DISABLE;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+	capability = inst->capabilities;
+
+	adjusted_value = ctrl ? ctrl->val : capability->cap[SLICE_DECODE].value;
+
+	if (msm_vidc_get_parent_value(inst, SLICE_DECODE, LOWLATENCY_MODE,
+		&low_latency, __func__) ||
+	    msm_vidc_get_parent_value(inst, SLICE_DECODE, OUTPUT_ORDER,
+		&picture_order, __func__) ||
+	    msm_vidc_get_parent_value(inst, SLICE_DECODE, META_OUTBUF_FENCE,
+		&outbuf_fence, __func__))
+		return -EINVAL;
+
+	if (!low_latency || !picture_order ||
+	    !is_meta_rx_inp_enabled(inst, META_OUTBUF_FENCE))
+		adjusted_value = V4L2_MPEG_MSM_VIDC_DISABLE;
+
+	msm_vidc_update_cap_value(inst, SLICE_DECODE,
 		adjusted_value, __func__);
 
 	return 0;
@@ -4133,7 +4187,7 @@ int msm_vidc_set_blur_resolution(void *instance,
 	return rc;
 }
 
-static msm_venc_set_csc_coeff(struct msm_vidc_inst *inst,
+static int msm_venc_set_csc_coeff(struct msm_vidc_inst *inst,
 	const char *prop_name, u32 hfi_id, void *payload,
 	u32 payload_size, u32 row_count, u32 column_count)
 {
@@ -4702,6 +4756,36 @@ int msm_vidc_set_pipe(void *instance,
 	pipe = inst->capabilities->cap[PIPE].value;
 	rc = msm_vidc_packetize_control(inst, cap_id, HFI_PAYLOAD_U32,
 			&pipe, sizeof(u32), __func__);
+	if (rc)
+		return rc;
+
+	return rc;
+}
+
+int msm_vidc_set_vui_timing_info(void *instance,
+	enum msm_vidc_inst_capability_type cap_id)
+{
+	int rc = 0;
+	struct msm_vidc_inst *inst = (struct msm_vidc_inst *)instance;
+	u32 hfi_value;
+
+	if (!inst || !inst->capabilities) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	/*
+	 * hfi is HFI_PROP_DISABLE_VUI_TIMING_INFO and v4l2 cap is
+	 * V4L2_CID_MPEG_VIDC_VUI_TIMING_INFO and hence reverse
+	 * the hfi_value from cap_id value.
+	 */
+	if (inst->capabilities->cap[cap_id].value == V4L2_MPEG_MSM_VIDC_ENABLE)
+		hfi_value = 0;
+	else
+		hfi_value = 1;
+
+	rc = msm_vidc_packetize_control(inst, cap_id, HFI_PAYLOAD_U32,
+		&hfi_value, sizeof(u32), __func__);
 	if (rc)
 		return rc;
 

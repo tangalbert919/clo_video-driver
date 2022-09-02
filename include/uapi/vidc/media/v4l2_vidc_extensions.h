@@ -271,6 +271,9 @@ enum v4l2_h264_encode_delivery_mode {
 #define V4L2_CID_MPEG_VIDC_LAST_FLAG_EVENT_ENABLE                             \
 	(V4L2_CID_MPEG_VIDC_BASE + 0x42)
 
+#define V4L2_CID_MPEG_VIDC_VUI_TIMING_INFO                                    \
+	(V4L2_CID_MPEG_VIDC_BASE + 0x43)
+
 /* add new controls above this line */
 /* Deprecate below controls once availble in gki and gsi bionic header */
 #ifndef V4L2_CID_MPEG_VIDEO_BASELAYER_PRIORITY_ID
@@ -425,6 +428,10 @@ enum meta_interlace_info {
 	META_INTERLACE_FRAME_INTERLACE_BOTTOMFIELD_FIRST    = 0x00000020,
 };
 
+/*
+ * enum meta_picture_type - specifies input picture type
+ * @META_PICTURE_TYPE_NEW: start of new frame or first slice in a frame
+ */
 enum meta_picture_type {
 	META_PICTURE_TYPE_IDR                            = 0x00000001,
 	META_PICTURE_TYPE_P                              = 0x00000002,
@@ -433,6 +440,7 @@ enum meta_picture_type {
 	META_PICTURE_TYPE_CRA                            = 0x00000010,
 	META_PICTURE_TYPE_BLA                            = 0x00000020,
 	META_PICTURE_TYPE_NOSHOW                         = 0x00000040,
+	META_PICTURE_TYPE_NEW                            = 0x00000080,
 };
 
 /* vendor controls end */
@@ -463,18 +471,6 @@ struct v4l2_event_vidc_metadata {
 	__u32                                bytesused;
 	__u32                                offset;
 	__u8                                 reserved[44];
-};
-
-#define V4L2_EVENT_VIDC_LAST_FLAG                                             \
-	(V4L2_EVENT_PRIVATE_START + 0x2)
-
-enum v4l2_event_last_flag {
-	LAST_FLAG_DRC         = (1 << 0),
-	LAST_FLAG_DRAIN       = (1 << 1),
-};
-
-struct v4l2_event_vidc_last_flag {
-	enum v4l2_event_last_flag flag_type;
 };
 
 /* vendor events end */

@@ -37,7 +37,7 @@
 #define VP9     MSM_VIDC_VP9
 #define HEIC    MSM_VIDC_HEIC
 #define CODECS_ALL     (H264 | HEVC | VP9 | HEIC)
-#define MAXIMUM_OVERRIDE_VP9_FPS 180
+#define MAXIMUM_OVERRIDE_VP9_FPS 200
 
 static struct msm_platform_core_capability core_data_waipio[] = {
 	/* {type, value} */
@@ -362,8 +362,11 @@ static struct msm_platform_inst_capability instance_cap_data_waipio[] = {
 		V4L2_CID_MPEG_VIDC_SUPERFRAME, 0,
 		CAP_FLAG_NONE},
 
-	{SLICE_INTERFACE, DEC, CODECS_ALL,
-		0, 0, 0, 0,
+	{SLICE_DECODE, DEC, H264|HEVC,
+		V4L2_MPEG_MSM_VIDC_DISABLE,
+		V4L2_MPEG_MSM_VIDC_DISABLE,
+		0,
+		V4L2_MPEG_MSM_VIDC_DISABLE,
 		V4L2_CID_MPEG_VIDEO_DECODER_SLICE_INTERFACE,
 		0},
 
@@ -1622,7 +1625,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_waip
 
 	{META_OUTBUF_FENCE, DEC, H264|HEVC|VP9,
 		{OUTPUT_ORDER},
-		{LOWLATENCY_MODE},
+		{LOWLATENCY_MODE, SLICE_DECODE},
 		NULL,
 		NULL},
 
@@ -1647,6 +1650,12 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_waip
 	{SUPER_FRAME, ENC, H264|HEVC,
 		{0},
 		{INPUT_BUF_HOST_MAX_COUNT, OUTPUT_BUF_HOST_MAX_COUNT},
+		NULL,
+		NULL},
+
+	{SLICE_DECODE, DEC, H264|HEVC,
+		{LOWLATENCY_MODE, META_OUTBUF_FENCE, OUTPUT_ORDER},
+		{0},
 		NULL,
 		NULL},
 
@@ -1757,7 +1766,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_waip
 
 	{LOWLATENCY_MODE, DEC, H264|HEVC|VP9,
 		{META_OUTBUF_FENCE},
-		{STAGE},
+		{STAGE, SLICE_DECODE},
 		msm_vidc_adjust_dec_lowlatency_mode,
 		NULL},
 
@@ -1910,7 +1919,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_waip
 
 	{ENH_LAYER_COUNT, ENC, H264|HEVC,
 		{BITRATE_MODE, META_EVA_STATS},
-		{GOP_SIZE, B_FRAME, BIT_RATE, MIN_QUALITY},
+		{GOP_SIZE, B_FRAME, BIT_RATE, MIN_QUALITY, SLICE_MODE},
 		msm_vidc_adjust_layer_count,
 		msm_vidc_set_layer_count_and_type},
 
@@ -2005,7 +2014,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_waip
 		msm_vidc_set_deblock_mode},
 
 	{SLICE_MODE, ENC, H264|HEVC,
-		{BITRATE_MODE, ALL_INTRA},
+		{BITRATE_MODE, ALL_INTRA, ENH_LAYER_COUNT},
 		{STAGE},
 		msm_vidc_adjust_slice_count,
 		msm_vidc_set_slice_count},
@@ -2042,7 +2051,7 @@ static struct msm_platform_inst_cap_dependency instance_cap_dependency_data_waip
 
 	{OUTPUT_ORDER, DEC, H264|HEVC|VP9,
 		{THUMBNAIL_MODE, DISPLAY_DELAY, DISPLAY_DELAY_ENABLE},
-		{META_OUTBUF_FENCE},
+		{META_OUTBUF_FENCE, SLICE_DECODE},
 		msm_vidc_adjust_output_order,
 		msm_vidc_set_u32},
 
