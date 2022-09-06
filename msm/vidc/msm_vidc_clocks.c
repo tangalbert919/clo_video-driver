@@ -1794,20 +1794,7 @@ static u32 get_core_load(struct msm_vidc_core *core,
 
 int msm_vidc_decide_core_and_power_mode_ar50lt(struct msm_vidc_inst *inst)
 {
-	bool enable = false;
-	u32 mbs_per_frame, mbs_per_sec;
-
-	mbs_per_frame = msm_vidc_get_mbs_per_frame(inst);
-	mbs_per_sec = mbs_per_frame * msm_vidc_get_fps(inst);
-
-	s_vpr_h(inst->sid, "%s: mbs_per_frame = %d, mbs_per_sec = %d\n",
-		__func__, mbs_per_frame, mbs_per_sec);
-	if (mbs_per_frame > inst->core->resources.max_hq_mbs_per_frame ||
-		mbs_per_sec > inst->core->resources.max_hq_mbs_per_sec) {
-		enable = true;
-	}
 	inst->clk_data.core_id = VIDC_CORE_ID_1;
-	msm_vidc_power_save_mode_enable(inst, enable);
 	return 0;
 }
 

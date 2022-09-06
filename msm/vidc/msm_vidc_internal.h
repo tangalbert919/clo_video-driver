@@ -490,6 +490,7 @@ struct msm_vidc_core {
 	struct msm_vidc_capability *capabilities;
 	struct delayed_work fw_unload_work;
 	struct work_struct ssr_work;
+	struct work_struct restore_work;
 	struct workqueue_struct *vidc_core_workq;
 	struct msm_vidc_ssr ssr;
 	bool smmu_fault_handled;
@@ -660,6 +661,7 @@ int msm_smem_memory_prefetch(struct msm_vidc_inst *inst);
 int msm_smem_memory_drain(struct msm_vidc_inst *inst);
 void msm_vidc_fw_unload_handler(struct work_struct *work);
 void msm_vidc_ssr_handler(struct work_struct *work);
+void msm_comm_load_fw(struct work_struct *work);
 /*
  * XXX: normally should be in msm_vidc.h, but that's meant for public APIs,
  * whereas this is private
