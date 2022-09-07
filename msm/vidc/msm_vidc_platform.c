@@ -1309,7 +1309,7 @@ static struct msm_vidc_common_data kona_common_data[] = {
         },
         {
                 .key = "qcom,max-mbpf",
-                .value = 173056,        /* (8192x4320)/256 + (4096x2176)/256*/
+                .value = 195840, /* 24x(1920x1088)/256 */
         },
         {
                 .key = "qcom,max-hq-mbs-per-frame",
@@ -2745,6 +2745,7 @@ void *vidc_get_drv_data(struct device *dev)
 		msm_vidc_ddr_ubwc_config(driver_data, 0xf);
 	} else if (!strcmp(match->compatible, "qcom,kona-vidc")) {
 		msm_vidc_ddr_ubwc_config(driver_data, 0xf);
+		driver_data->max_inst_count = MAX_SUPPORTED_INSTANCES_24;
 	} else if (!strcmp(match->compatible, "qcom,bengal-vidc")) {
 		rc = msm_vidc_read_rank(driver_data, dev);
 		if (rc) {
