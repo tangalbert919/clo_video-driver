@@ -1251,7 +1251,7 @@ static int handle_dequeue_buffers(struct msm_vidc_inst *inst)
 						"vb2 done already", inst, buf);
 				} else {
 					buf->attr |= MSM_VIDC_ATTR_BUFFER_DONE;
-					rc = msm_vidc_buffer_done(inst, buf);
+					rc = msm_vidc_vb2_buffer_done(inst, buf);
 					if (rc) {
 						print_vidc_buffer(VIDC_HIGH, "err ",
 							"vb2 done failed", inst, buf);
@@ -1661,6 +1661,10 @@ static int handle_property_with_payload(struct msm_vidc_inst *inst,
 		inst->hfi_frame_info.picture_type = payload_ptr[0];
 		if (inst->hfi_frame_info.picture_type & HFI_PICTURE_B)
 			inst->has_bframe = true;
+		if (inst->hfi_frame_info.picture_type & HFI_PICTURE_IDR)
+			inst->iframe = true;
+		else
+			inst->iframe = false;
 		break;
 	case HFI_PROP_SUBFRAME_INPUT:
 		if (port != INPUT_PORT) {
