@@ -1,11 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
 # auto-detect subdirs
-ifeq (y, $(findstring y, $(CONFIG_ARCH_SA8155)))
+ifeq (y, $(findstring y, $(CONFIG_ARCH_SA8155) $(CONFIG_ARCH_SA8195)))
 include $(VIDEO_ROOT)/config/gen3autovid.conf
 endif
 
-ifeq (y, $(findstring y, $(CONFIG_ARCH_SA8155)))
+ifeq (y, $(findstring y, $(CONFIG_ARCH_SA8155) $(CONFIG_ARCH_SA8195)))
 LINUXINCLUDE    += -include $(VIDEO_ROOT)/config/gen3autovidconf.h
 endif
 

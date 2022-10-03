@@ -7,6 +7,7 @@
 #include <linux/dma-heap.h>
 #include <linux/qcom-dma-mapping.h>
 #include <linux/ion.h>
+#include <linux/mem-buf.h>
 #include "msm_vidc.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_resources.h"
@@ -192,7 +193,6 @@ int msm_smem_map_dma_buf(struct msm_vidc_inst *inst, struct msm_smem *smem)
 	unsigned long buffer_size = 0;
 	unsigned long align = SZ_4K;
 	struct dma_buf *dbuf;
-	unsigned long ion_flags = 0;
 	u32 b_type = HAL_BUFFER_INPUT | HAL_BUFFER_OUTPUT | HAL_BUFFER_OUTPUT2;
 
 	if (!inst || !smem) {
@@ -215,15 +215,7 @@ int msm_smem_map_dma_buf(struct msm_vidc_inst *inst, struct msm_smem *smem)
 
 	smem->dma_buf = dbuf;
 
-	rc = dma_buf_get_flags(dbuf, &ion_flags);
-	if (rc) {
-		s_vpr_e(inst->sid, "Failed to get dma buf flags: %d\n", rc);
-		goto fail_map_dma_buf;
-	}
-	if (ion_flags & ION_FLAG_CACHED)
-		smem->flags |= SMEM_CACHED;
-
-	if (ion_flags & ION_FLAG_SECURE)
+	if (!mem_buf_dma_buf_exclusive_owner(dbuf))
 		smem->flags |= SMEM_SECURE;
 
 	if ((smem->buffer_type & b_type) &&
@@ -333,17 +325,17 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 			if (session_type == MSM_VIDC_ENCODER)
 				heap_name = "qcom,secure-pixel";
 			else
-				heap_name = "qcom,system-uncached";
+				heap_name = "system-secure";
 			break;
 		case HAL_BUFFER_OUTPUT:
 		case HAL_BUFFER_OUTPUT2:
 			if (session_type == MSM_VIDC_ENCODER)
-				heap_name = "qcom,system-uncached";
+				heap_name = "system-secure";
 			else
 				heap_name = "qcom,secure-pixel";
 			break;
 		case HAL_BUFFER_INTERNAL_SCRATCH:
-			heap_name = "qcom,system-uncached";
+			heap_name = "system-secure";
 			break;
 		case HAL_BUFFER_INTERNAL_SCRATCH_1:
 			heap_name = "qcom,secure-non-pixel";
@@ -355,7 +347,7 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 			if (session_type == MSM_VIDC_ENCODER)
 				heap_name = "qcom,secure-non-pixel";
 			else
-				heap_name = "qcom,system-uncached";
+				heap_name = "system-secure";
 			break;
 		case HAL_BUFFER_INTERNAL_PERSIST_1:
 			heap_name = "qcom,secure-non-pixel";
