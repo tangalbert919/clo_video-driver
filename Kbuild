@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
+ifneq ($(CONFIG_ARCH_LEMANS), y)
 KBUILD_CPPFLAGS += -DCONFIG_MSM_MMRM=1
+endif
 
 ifeq ($(CONFIG_ARCH_WAIPIO), y)
 include $(VIDEO_ROOT)/config/waipio_video.conf
@@ -24,6 +26,12 @@ ifeq ($(CONFIG_ARCH_ANORAK), y)
 include $(VIDEO_ROOT)/config/anorak_video.conf
 LINUXINCLUDE    += -include $(VIDEO_ROOT)/config/anorak_video.h \
                    -I$(VIDEO_ROOT)/driver/platform/anorak/inc
+endif
+
+ifeq ($(CONFIG_ARCH_LEMANS), y)
+include $(VIDEO_ROOT)/config/lemans_video.conf
+LINUXINCLUDE    += -include $(VIDEO_ROOT)/config/lemans_video.h \
+                   -I$(VIDEO_ROOT)/driver/platform/lemans/inc
 endif
 
 LINUXINCLUDE    += -I$(VIDEO_ROOT)/driver/vidc/inc \
@@ -50,6 +58,10 @@ endif
 
 ifeq ($(CONFIG_MSM_VIDC_ANORAK), y)
 msm_video-objs += driver/platform/anorak/src/msm_vidc_anorak.o
+endif
+
+ifeq ($(CONFIG_MSM_VIDC_LEMANS), y)
+msm_video-objs += driver/platform/lemans/src/msm_vidc_lemans.o
 endif
 
 ifeq ($(CONFIG_MSM_VIDC_IRIS2), y)

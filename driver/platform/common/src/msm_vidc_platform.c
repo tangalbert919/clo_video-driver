@@ -33,6 +33,9 @@
 #if defined(CONFIG_MSM_VIDC_ANORAK)
 #include "msm_vidc_anorak.h"
 #endif
+#if defined(CONFIG_MSM_VIDC_LEMANS)
+#include "msm_vidc_lemans.h"
+#endif
 #if defined(CONFIG_MSM_VIDC_IRIS2)
 #include "msm_vidc_iris2.h"
 #endif
@@ -262,6 +265,15 @@ static int msm_vidc_deinit_platform_variant(struct msm_vidc_core *core, struct d
 		return rc;
 	}
 #endif
+#if defined(CONFIG_MSM_VIDC_LEMANS)
+	if (of_device_is_compatible(dev->of_node, "qcom,sa8255-vidc")) {
+		rc = msm_vidc_deinit_platform_lemans(core, dev);
+		if (rc)
+			d_vpr_e("%s: failed with %d\n", __func__, rc);
+		return rc;
+	}
+#endif
+
 
 	return rc;
 }
@@ -310,6 +322,14 @@ static int msm_vidc_init_platform_variant(struct msm_vidc_core *core, struct dev
 		return rc;
 	}
 #endif
+#if defined(CONFIG_MSM_VIDC_LEMANS)
+	if (of_device_is_compatible(dev->of_node, "qcom,sa8255-vidc")) {
+		rc = msm_vidc_init_platform_lemans(core, dev);
+		if (rc)
+			d_vpr_e("%s: failed with %d\n", __func__, rc);
+		return rc;
+	}
+#endif
 
 	return rc;
 }
@@ -335,7 +355,8 @@ static int msm_vidc_deinit_vpu(struct msm_vidc_core *core, struct device *dev)
 #endif
 #if defined(CONFIG_MSM_VIDC_IRIS3)
 	if (of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc") ||
-		of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc-v2")) {
+		of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc-v2") ||
+		of_device_is_compatible(dev->of_node, "qcom,sa8255-vidc")) {
 		rc = msm_vidc_deinit_iris3(core);
 		if (rc)
 			d_vpr_e("%s: failed with %d\n", __func__, rc);
@@ -372,7 +393,8 @@ static int msm_vidc_init_vpu(struct msm_vidc_core *core, struct device *dev)
 #endif
 #if defined(CONFIG_MSM_VIDC_IRIS3)
 	if (of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc") ||
-		of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc-v2")) {
+		of_device_is_compatible(dev->of_node, "qcom,sm8550-vidc-v2") ||
+		of_device_is_compatible(dev->of_node, "qcom,sa8255-vidc")) {
 		rc = msm_vidc_init_iris3(core);
 		if (rc)
 			d_vpr_e("%s: failed with %d\n", __func__, rc);
