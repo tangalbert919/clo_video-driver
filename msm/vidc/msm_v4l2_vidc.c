@@ -804,7 +804,7 @@ static int msm_vidc_pm_resume(struct device *dev)
 	return 0;
 }
 
-#ifdef CONFIG_HIBERNAITON
+#ifdef CONFIG_HIBERNATION
 static int msm_vidc_pm_restore(struct device *dev)
 {
 	struct msm_vidc_core *core = NULL;
@@ -860,7 +860,7 @@ static const struct dev_pm_ops msm_vidc_pm_ops = {
 	.suspend = msm_vidc_pm_suspend,
 	.resume  = msm_vidc_pm_resume,
 	.freeze  = msm_vidc_pm_freeze,
-#ifdef CONFIG_HIBERNAITON
+#ifdef CONFIG_HIBERNATION
 	.restore = msm_vidc_pm_restore,
 #endif
 };
