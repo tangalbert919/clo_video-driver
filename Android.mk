@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
+ifeq ($(ENABLE_HYP),false)
 VIDEO_BLD_DIR := $(shell pwd)/vendor/qcom/opensource/video-driver
 VIDEO_SELECT := CONFIG_MSM_VIDC_V4L2=m
 
@@ -30,3 +31,4 @@ LOCAL_MODULE_PATH         := $(KERNEL_MODULES_OUT)
 # Include kp_module.ko in the /vendor/lib/modules (vendor.img)
 BOARD_VENDOR_KERNEL_MODULES += $(LOCAL_MODULE_PATH)/$(LOCAL_MODULE)
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
+endif
