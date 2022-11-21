@@ -2985,8 +2985,10 @@ static int __init_regs_and_interrupts(struct venus_hfi_device *device,
 
 	hal->irq = res->irq;
 	hal->firmware_base = res->firmware_base;
-	hal->register_base = devm_ioremap_nocache(&res->pdev->dev,
-			res->register_base, res->register_size);
+#ifdef _KONA_8250_
+	// hal->register_base = devm_ioremap_nocache(&res->pdev->dev,
+			// res->register_base, res->register_size);
+#endif
 	hal->register_size = res->register_size;
 	if (!hal->register_base) {
 		d_vpr_e("could not map reg addr %pa of size %d\n",
@@ -3471,8 +3473,10 @@ static int __protect_cp_mem(struct venus_hfi_device *device)
 	}
 	mutex_unlock(&device->res->cb_lock);
 
-	rc = qcom_scm_mem_protect_video(memprot.cp_start, memprot.cp_size,
-			memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
+#ifdef _KONA_8250_
+	// rc = qcom_scm_mem_protect_video(memprot.cp_start, memprot.cp_size,
+			// memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
+#endif
 
 	if (rc)
 		d_vpr_e("Failed to protect memory(%d)\n", rc);
@@ -3966,10 +3970,12 @@ static int __load_fw(struct venus_hfi_device *device)
 	}
 
 	if (!device->res->firmware_base) {
+#ifdef _KONA_8250_
 		if (!device->resources.fw.cookie)
 			device->resources.fw.cookie =
 				subsystem_get_with_fwname("venus",
 				device->res->fw_name);
+#endif
 
 		if (IS_ERR_OR_NULL(device->resources.fw.cookie)) {
 			d_vpr_e("Failed to download firmware\n");
@@ -4000,8 +4006,12 @@ static int __load_fw(struct venus_hfi_device *device)
 	trace_msm_v4l2_vidc_fw_load_end("msm_v4l2_vidc venus_fw load end");
 	return rc;
 fail_protect_mem:
-	if (device->resources.fw.cookie)
-		subsystem_put(device->resources.fw.cookie);
+
+#ifdef _KONA_8250_
+	//if (device->resources.fw.cookie)
+		//subsystem_put(device->resources.fw.cookie);
+#endif
+
 	device->resources.fw.cookie = NULL;
 fail_load_fw:
 	call_venus_op(device, power_off, device);
@@ -4022,7 +4032,10 @@ static void __unload_fw(struct venus_hfi_device *device)
 	if (device->state != VENUS_STATE_DEINIT)
 		flush_workqueue(device->venus_pm_workq);
 
-	subsystem_put(device->resources.fw.cookie);
+#ifdef _KONA_8250_
+	//subsystem_put(device->resources.fw.cookie);
+#endif
+
 	__interface_queues_release(device);
 	call_venus_op(device, power_off, device);
 	device->resources.fw.cookie = NULL;

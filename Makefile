@@ -1,43 +1,16 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
-# auto-detect subdirs
-ifneq ($(CONFIG_ARCH_QTI_VM), y)
-ifeq ($(CONFIG_ARCH_LAHAINA), y)
-include $(srctree)/techpack/video/config/konavid.conf
-LINUXINCLUDE    += -include $(srctree)/techpack/video/config/konavidconf.h
-endif
+KBUILD_OPTIONS+= VIDEO_ROOT=$(KERNEL_SRC)/$(M)
 
-# auto-detect subdirs
-ifeq ($(CONFIG_ARCH_HOLI), y)
-include $(srctree)/techpack/video/config/holivid.conf
-endif
+all:
+	$(MAKE) -C $(KERNEL_SRC) M=$(M) modules $(KBUILD_OPTIONS)
 
-ifeq ($(CONFIG_ARCH_HOLI), y)
-LINUXINCLUDE    += -include $(srctree)/techpack/video/config/holividconf.h
-endif
+modules_install:
+	$(MAKE) INSTALL_MOD_STRIP=1 -C $(KERNEL_SRC) M=$(M) modules_install
 
-# auto-detect subdirs
-ifeq ($(CONFIG_ARCH_LITO), y)
-include $(srctree)/techpack/video/config/litovid.conf
-endif
+%:
+	$(MAKE) -C $(KERNEL_SRC) M=$(M) $@ $(KBUILD_OPTIONS)
 
-ifeq ($(CONFIG_ARCH_LITO), y)
-LINUXINCLUDE    += -include $(srctree)/techpack/video/config/litovidconf.h
-endif
-endif
-
-# auto-detect subdirs
-ifeq ($(CONFIG_ARCH_SCUBA), y)
-include $(srctree)/techpack/video/config/scubavid.conf
-endif
-
-ifeq ($(CONFIG_ARCH_SCUBA), y)
-LINUXINCLUDE    += -include $(srctree)/techpack/video/config/scubavidconf.h
-endif
-
-LINUXINCLUDE    += -I$(srctree)/techpack/video/include \
-                   -I$(srctree)/techpack/video/include/uapi
-
-USERINCLUDE     += -I$(srctree)/techpack/video/include/uapi
-
-obj-y +=msm/
+clean:
+	rm -f *.o *.ko *.mod.c *.mod.o *~ .*.cmd
+	rm -rf .tmp_versions

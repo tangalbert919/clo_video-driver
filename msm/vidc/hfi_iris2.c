@@ -165,9 +165,13 @@ void __setup_ucregion_memory_map_iris2(struct venus_hfi_device *device, u32 sid)
 	if (device->qdss.align_device_addr)
 		__write_register(device, MMAP_ADDR_IRIS2,
 				(u32)device->qdss.align_device_addr, sid);
+
+#ifdef _KONA_8250_
 	/* update queues vaddr for debug purpose */
-	__write_register(device, CPU_CS_VCICMDARG0_IRIS2,
-		(u32)device->iface_q_table.align_virtual_addr, sid);
+	// __write_register(device, CPU_CS_VCICMDARG0_IRIS2,
+		// (u32)device->iface_q_table.align_virtual_addr, sid);
+#endif
+
 	__write_register(device, CPU_CS_VCICMDARG1_IRIS2,
 		(u32)((u64)device->iface_q_table.align_virtual_addr >> 32),
 		sid);

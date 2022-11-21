@@ -91,8 +91,10 @@ static ssize_t core_info_read(struct file *file, char __user *buf,
 	cur += write_str(cur, end - cur,
 		"register_size: %u\n", fw_info.register_size);
 	cur += write_str(cur, end - cur, "irq: %u\n", fw_info.irq);
+#ifdef _KONA_8250_
 	cur += write_str(cur, end - cur,
 		"ddr_type: %d\n", of_fdt_get_ddrtype());
+#endif
 
 err_fw_info:
 	for (i = SYS_MSG_START; i < SYS_MSG_END; i++) {
@@ -207,7 +209,9 @@ static const struct file_operations debug_level_fops = {
 
 struct dentry *msm_vidc_debugfs_init_drv(void)
 {
-	bool ok = false;
+#ifdef _KONA_8250_
+	//bool ok = false;
+#endif
 	struct dentry *dir = NULL;
 
 	msm_vidc_vpp_delay = 0;
@@ -218,6 +222,7 @@ struct dentry *msm_vidc_debugfs_init_drv(void)
 		goto failed_create_dir;
 	}
 
+#ifdef _KONA_8250_
 #define __debugfs_create(__type, __name, __value) ({                          \
 	struct dentry *f = debugfs_create_##__type(__name, 0644,	\
 		dir, __value);                                                \
@@ -228,27 +233,29 @@ struct dentry *msm_vidc_debugfs_init_drv(void)
 	}                                                                     \
 	f;                                                                    \
 })
+#else
+#define __debugfs_create(__type, __name, __value) ({                          \
+	debugfs_create_##__type(__name, 0644,	\
+		dir, __value);                                                \
+})
+#endif
 
-	ok =
-	__debugfs_create(u32, "fw_debug_mode", &msm_vidc_fw_debug_mode) &&
-	__debugfs_create(bool, "fw_coverage", &msm_vidc_fw_coverage) &&
+	__debugfs_create(u32, "fw_debug_mode", &msm_vidc_fw_debug_mode);
+	__debugfs_create(bool, "fw_coverage", &msm_vidc_fw_coverage);
 	__debugfs_create(bool, "disable_thermal_mitigation",
-			&msm_vidc_thermal_mitigation_disabled) &&
+			&msm_vidc_thermal_mitigation_disabled);
 	__debugfs_create(u32, "core_clock_voting",
-			&msm_vidc_clock_voting) &&
+			&msm_vidc_clock_voting);
 	__debugfs_create(bool, "disable_video_syscache",
-			&msm_vidc_syscache_disable) &&
-	__debugfs_create(bool, "cvp_usage", &msm_vidc_cvp_usage) &&
+			&msm_vidc_syscache_disable);
+	__debugfs_create(bool, "cvp_usage", &msm_vidc_cvp_usage);
 	__debugfs_create(bool, "lossless_encoding",
-			&msm_vidc_lossless_encode) &&
+			&msm_vidc_lossless_encode);
 	__debugfs_create(u32, "disable_err_recovery",
-			&msm_vidc_err_recovery_disable) &&
+			&msm_vidc_err_recovery_disable);
 	__debugfs_create(u32, "vpp_delay", &msm_vidc_vpp_delay);
 
 #undef __debugfs_create
-
-	if (!ok)
-		goto failed_create_dir;
 
 	return dir;
 
@@ -684,10 +691,12 @@ inline void update_log_ctxt(u32 sid, u32 session_type, u32 fourcc)
 	vidc_driver->ctxt[sid-1].name[5] = '\0';
 }
 
+#ifdef _KONA_8250_
 /* Mock all the missing parts for successful compilation starts here */
 void do_gettimeofday(struct timeval *__ddl_tv)
 {
 }
+#endif
 
 #ifndef CONFIG_VIDEOBUF2_CORE
 void vb2_queue_release(struct vb2_queue *q)

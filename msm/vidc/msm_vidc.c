@@ -627,11 +627,19 @@ int msm_vidc_enum_framesizes(void *instance, struct v4l2_frmsizeenum *fsize)
 }
 EXPORT_SYMBOL(msm_vidc_enum_framesizes);
 
+#ifdef _KONA_8250_
 static void *vidc_get_userptr(struct device *dev, unsigned long vaddr,
 			unsigned long size, enum dma_data_direction dma_dir)
 {
 	return (void *)0xdeadbeef;
 }
+#else
+void *vidc_get_userptr(struct vb2_buffer *vb, struct device *dev,
+			unsigned long vaddr, unsigned long size)
+{
+	return (void *)0xdeadbeef;
+}
+#endif
 
 static void vidc_put_userptr(void *buf_priv)
 {
@@ -1474,8 +1482,10 @@ static const struct v4l2_ctrl_ops msm_vidc_ctrl_ops = {
 static struct msm_vidc_inst_smem_ops  msm_vidc_smem_ops = {
 	.smem_map_dma_buf = msm_smem_map_dma_buf,
 	.smem_unmap_dma_buf = msm_smem_unmap_dma_buf,
+#ifdef _KONA_8250_
 	.smem_prefetch = msm_smem_memory_prefetch,
 	.smem_drain = msm_smem_memory_drain,
+#endif
 };
 
 static void close_helper(struct kref *kref)

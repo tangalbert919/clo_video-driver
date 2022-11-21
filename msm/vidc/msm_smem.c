@@ -60,7 +60,9 @@ static int msm_dma_get_device_address(struct dma_buf *dbuf, unsigned long align,
 		 * Get the scatterlist for the given attachment
 		 * Mapping of sg is taken care by map attachment
 		 */
+#ifdef _KONA_8250_
 		attach->dma_map_attrs = DMA_ATTR_DELAYED_UNMAP;
+#endif
 		/*
 		 * We do not need dma_map function to perform cache operations
 		 * on the whole buffer size and hence pass skip sync flag.
@@ -68,9 +70,11 @@ static int msm_dma_get_device_address(struct dma_buf *dbuf, unsigned long align,
 		 * required buffer size
 		 */
 		attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
+#ifdef _KONA_8250_
 		if (res->sys_cache_present)
 			attach->dma_map_attrs |=
 				DMA_ATTR_IOMMU_USE_UPSTREAM_HINT;
+#endif
 
 		table = dma_buf_map_attachment(attach, DMA_BIDIRECTIONAL);
 		if (IS_ERR_OR_NULL(table)) {
@@ -397,7 +401,9 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 
 	trace_msm_smem_buffer_dma_op_start("ALLOC", (u32)buffer_type,
 		heap_mask, size, align, flags, map_kernel);
+#ifdef _KONA_8250_
 	dbuf = ion_alloc(size, heap_mask, ion_flags);
+#endif
 	if (IS_ERR_OR_NULL(dbuf)) {
 		s_vpr_e(sid, "Failed to allocate shared memory = %zx, %#x\n",
 		size, flags);
@@ -431,12 +437,22 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 
 	if (map_kernel) {
 		dma_buf_begin_cpu_access(dbuf, DMA_BIDIRECTIONAL);
+#ifdef _KONA_8250_
 		mem->kvaddr = dma_buf_vmap(dbuf);
 		if (!mem->kvaddr) {
 			s_vpr_e(sid, "Failed to map shared mem in kernel\n");
 			rc = -EIO;
 			goto fail_map;
 		}
+//#else
+		rc = dma_buf_vmap(mem->dmabuf, &mem->dmabuf_map);
+		if (rc) {
+			d_vpr_e("%s: kernel map failed\n", __func__);
+			rc = -EIO;
+			goto error;
+		}
+		mem->kvaddr = mem->dmabuf_map.vaddr;
+#endif
 	}
 
 	s_vpr_h(sid,
@@ -446,7 +462,9 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 		mem->kvaddr, mem->buffer_type, mem->flags);
 	return rc;
 
-fail_map:
+#ifdef _KONA_8250_
+//fail_map:
+#endif
 	if (map_kernel)
 		dma_buf_end_cpu_access(dbuf, DMA_BIDIRECTIONAL);
 fail_device_address:
@@ -611,7 +629,7 @@ struct context_bank_info *msm_smem_get_context_bank(u32 session_type,
 
 	return match;
 }
-
+#ifdef _KONA_8250_
 int msm_smem_memory_prefetch(struct msm_vidc_inst *inst)
 {
 	int i, rc = 0;
@@ -682,3 +700,4 @@ int msm_smem_memory_drain(struct msm_vidc_inst *inst)
 
 	return rc;
 }
+#endif

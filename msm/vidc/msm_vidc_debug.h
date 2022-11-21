@@ -13,13 +13,19 @@
 #include <linux/types.h>
 #include <linux/time.h>
 #include <linux/interrupt.h>
-#include <soc/qcom/subsystem_restart.h>
+
+#ifdef _KONA_8250_
+//#include <soc/qcom/subsystem_restart.h>
+#endif
+
 #include "msm_vidc_internal.h"
 
 // void disable_irq_nosync(unsigned int irq);
 // void enable_irq(unsigned int irq);
 
-void do_gettimeofday(struct timeval *__ddl_tv);
+#ifdef _KONA_8250_
+//void do_gettimeofday(struct timeval *__ddl_tv);
+#endif
 
 #ifndef CONFIG_VIDEOBUF2_CORE
 int vb2_reqbufs(struct vb2_queue *q, struct v4l2_requestbuffers *req);
@@ -260,6 +266,7 @@ static inline void put_sid(u32 sid)
 static inline void tic(struct msm_vidc_inst *i, enum profiling_points p,
 				 char *b)
 {
+#ifdef _KONA_8250_
 	struct timeval __ddl_tv = { 0 };
 
 	if (!i->debug.pdata[p].name[0])
@@ -271,10 +278,14 @@ static inline void tic(struct msm_vidc_inst *i, enum profiling_points p,
 			(__ddl_tv.tv_sec * 1000) + (__ddl_tv.tv_usec / 1000);
 			i->debug.pdata[p].sampling = false;
 	}
+#else
+	return;
+#endif
 }
 
 static inline void toc(struct msm_vidc_inst *i, enum profiling_points p)
 {
+#ifdef _KONA_8250_
 	struct timeval __ddl_tv = { 0 };
 
 	if ((msm_vidc_debug & VIDC_PERF) &&
@@ -286,8 +297,12 @@ static inline void toc(struct msm_vidc_inst *i, enum profiling_points p)
 			i->debug.pdata[p].start;
 		i->debug.pdata[p].sampling = true;
 	}
+#else
+	return;
+#endif
 }
 
+#ifdef _KONA_8250_
 static inline void show_stats(struct msm_vidc_inst *i)
 {
 	int x;
@@ -307,6 +322,7 @@ static inline void show_stats(struct msm_vidc_inst *i)
 		}
 	}
 }
+#endif
 
 static inline void msm_vidc_res_handle_fatal_hw_error(
 	struct msm_vidc_platform_resources *resources,
