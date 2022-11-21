@@ -2706,10 +2706,6 @@ static int msm_venc_set_rate_control(struct msm_vidc_inst *inst)
 			   inst->clk_data.low_latency_mode)
 		inst->rc_type = V4L2_MPEG_VIDEO_BITRATE_MODE_CBR;
 
-	if (inst->rc_type == V4L2_MPEG_VIDEO_BITRATE_MODE_CBR ||
-		inst->rc_type == V4L2_MPEG_VIDEO_BITRATE_MODE_CBR_VFR)
-		inst->clk_data.low_latency_mode = true;
-
 	switch (inst->rc_type) {
 	case RATE_CONTROL_OFF:
 	case RATE_CONTROL_LOSSLESS:
