@@ -1024,10 +1024,10 @@ u32 msm_vidc_calculate_enc_output_frame_size(struct msm_vidc_inst *inst)
 	if (inst->rc_type == RATE_CONTROL_LOSSLESS)
 		frame_size = (width * height * 9) >> 2;
 
-	/* multiply by 10/8 (1.25) to get size for 10 bit case */
+	/* multiply by 3/2 (1.5) to get size for 10 bit case */
 	if (inst->core->platform_data->vpu_ver != VPU_VERSION_AR50_LITE &&
 		f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEVC) {
-		frame_size = frame_size + (frame_size >> 2);
+		frame_size = frame_size + (frame_size >> 1);
 	}
 
 calc_done:
