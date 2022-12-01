@@ -3,12 +3,18 @@
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
  */
 
+#include <linux/of_address.h>
+#include <linux/firmware.h>
+#include <linux/qcom_scm.h>
+#include <linux/soc/qcom/mdt_loader.h>
+
 #include "hfi_common.h"
 
 #define FIRMWARE_SIZE			0X00A00000
 #define REG_ADDR_OFFSET_BITMASK	0x000FFFFF
 #define QDSS_IOVA_START 0x80001000
 #define MIN_PAYLOAD_SIZE 3
+#define MAX_FIRMWARE_NAME_SIZE 128
 
 static struct hal_device_data hal_ctxt;
 static struct venus_hfi_device venus_hfi_dev;
@@ -2985,10 +2991,8 @@ static int __init_regs_and_interrupts(struct venus_hfi_device *device,
 
 	hal->irq = res->irq;
 	hal->firmware_base = res->firmware_base;
-#ifdef _KONA_8250_
-	// hal->register_base = devm_ioremap_nocache(&res->pdev->dev,
-			// res->register_base, res->register_size);
-#endif
+	hal->register_base = devm_ioremap(&res->pdev->dev,
+			res->register_base, res->register_size);
 	hal->register_size = res->register_size;
 	if (!hal->register_base) {
 		d_vpr_e("could not map reg addr %pa of size %d\n",
@@ -3473,11 +3477,8 @@ static int __protect_cp_mem(struct venus_hfi_device *device)
 	}
 	mutex_unlock(&device->res->cb_lock);
 
-#ifdef _KONA_8250_
-	// rc = qcom_scm_mem_protect_video(memprot.cp_start, memprot.cp_size,
-			// memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
-#endif
-
+	rc = qcom_scm_mem_protect_video_var(memprot.cp_start, memprot.cp_size,
+			memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
 	if (rc)
 		d_vpr_e("Failed to protect memory(%d)\n", rc);
 
@@ -3945,6 +3946,108 @@ err_venus_power_on:
 	return rc;
 }
 
+static int __load_fw_to_memory(struct platform_device *pdev,
+	const char *fw_name)
+{
+	int rc = 0;
+	const struct firmware *firmware = NULL;
+	char firmware_name[MAX_FIRMWARE_NAME_SIZE] = { 0 };
+	struct device_node *node = NULL;
+	struct resource res = { 0 };
+	phys_addr_t phys = 0;
+	size_t res_size = 0;
+	ssize_t fw_size = 0;
+	void *virt = NULL;
+	int pas_id = 0;
+
+	if (!fw_name || !(*fw_name) || !pdev) {
+		d_vpr_e("%s: Invalid inputs\n", __func__);
+		return -EINVAL;
+	}
+	if (strlen(fw_name) >= MAX_FIRMWARE_NAME_SIZE - 4) {
+		d_vpr_e("%s: Invalid fw name\n", __func__);
+		return -EINVAL;
+	}
+	scnprintf(firmware_name, ARRAY_SIZE(firmware_name), "%s.mbn", fw_name);
+
+	rc = of_property_read_u32(pdev->dev.of_node, "pas-id", &pas_id);
+	if (rc) {
+		d_vpr_e("%s: failed to read \"pas-id\". error %d\n",
+			__func__, rc);
+		goto exit;
+	}
+
+	node = of_parse_phandle(pdev->dev.of_node, "memory-region", 0);
+	if (!node) {
+		d_vpr_e("%s: failed to read \"memory-region\"\n",
+			__func__);
+		return -EINVAL;
+	}
+
+	rc = of_address_to_resource(node, 0, &res);
+	if (rc) {
+		d_vpr_e("%s: failed to read \"memory-region\", error %d\n",
+			__func__, rc);
+		goto exit;
+	}
+	phys = res.start;
+	res_size = (size_t)resource_size(&res);
+
+	rc = request_firmware(&firmware, firmware_name, &pdev->dev);
+	if (rc) {
+		d_vpr_e("%s: failed to request fw \"%s\", error %d\n",
+			__func__, firmware_name, rc);
+		goto exit;
+	}
+
+	fw_size = qcom_mdt_get_size(firmware);
+	if (fw_size < 0 || res_size < (size_t)fw_size) {
+		rc = -EINVAL;
+		d_vpr_e("%s: out of bound fw image fw size: %ld, res_size: %lu",
+			__func__, fw_size, res_size);
+		goto exit;
+	}
+
+	virt = memremap(phys, res_size, MEMREMAP_WC);
+	if (!virt) {
+		d_vpr_e("%s: failed to remap fw memory phys %pa[p]\n",
+				__func__, phys);
+		return -ENOMEM;
+	}
+
+	/* prevent system suspend during fw_load */
+	pm_stay_awake(pdev->dev.parent);
+	rc = qcom_mdt_load(&pdev->dev, firmware, firmware_name,
+		pas_id, virt, phys, res_size, NULL);
+	pm_relax(pdev->dev.parent);
+	if (rc) {
+		d_vpr_e("%s: error %d loading fw \"%s\"\n",
+			__func__, rc, firmware_name);
+		goto exit;
+	}
+	rc = qcom_scm_pas_auth_and_reset(pas_id);
+	if (rc) {
+		d_vpr_e("%s: error %d authenticating fw \"%s\"\n",
+			__func__, rc, firmware_name);
+		goto exit;
+	}
+
+	memunmap(virt);
+	release_firmware(firmware);
+	d_vpr_h("%s: firmware \"%s\" loaded successfully\n",
+					__func__, firmware_name);
+
+	return pas_id;
+
+exit:
+	if (virt)
+		memunmap(virt);
+	if (firmware)
+		release_firmware(firmware);
+
+	return rc;
+}
+
 static int __load_fw(struct venus_hfi_device *device)
 {
 	int rc = 0;
@@ -3970,16 +4073,15 @@ static int __load_fw(struct venus_hfi_device *device)
 	}
 
 	if (!device->res->firmware_base) {
-#ifdef _KONA_8250_
 		if (!device->resources.fw.cookie)
-			device->resources.fw.cookie =
-				subsystem_get_with_fwname("venus",
-				device->res->fw_name);
-#endif
-
-		if (IS_ERR_OR_NULL(device->resources.fw.cookie)) {
-			d_vpr_e("Failed to download firmware\n");
-			device->resources.fw.cookie = NULL;
+		{
+			device->resources.fw.cookie = __load_fw_to_memory(device->res->pdev,
+							device->res->fw_name);
+		}
+		if (device->resources.fw.cookie <= 0) {
+			d_vpr_e("%s: firmware download failed %d\n",
+					__func__, device->resources.fw.cookie);
+			device->resources.fw.cookie = 0;
 			rc = -ENOMEM;
 			goto fail_load_fw;
 		}
@@ -4006,13 +4108,9 @@ static int __load_fw(struct venus_hfi_device *device)
 	trace_msm_v4l2_vidc_fw_load_end("msm_v4l2_vidc venus_fw load end");
 	return rc;
 fail_protect_mem:
-
-#ifdef _KONA_8250_
-	//if (device->resources.fw.cookie)
-		//subsystem_put(device->resources.fw.cookie);
-#endif
-
-	device->resources.fw.cookie = NULL;
+	if (device->resources.fw.cookie)
+		qcom_scm_pas_shutdown(device->resources.fw.cookie);
+	device->resources.fw.cookie = 0;
 fail_load_fw:
 	call_venus_op(device, power_off, device);
 fail_venus_power_on:
@@ -4025,6 +4123,8 @@ fail_init_res:
 
 static void __unload_fw(struct venus_hfi_device *device)
 {
+	int rc = 0;
+
 	if (!device->resources.fw.cookie)
 		return;
 
@@ -4032,13 +4132,13 @@ static void __unload_fw(struct venus_hfi_device *device)
 	if (device->state != VENUS_STATE_DEINIT)
 		flush_workqueue(device->venus_pm_workq);
 
-#ifdef _KONA_8250_
-	//subsystem_put(device->resources.fw.cookie);
-#endif
+	rc = qcom_scm_pas_shutdown(device->resources.fw.cookie);
+	if (rc)
+		d_vpr_e("Firmware unload failed rc=%d\n", rc);
 
 	__interface_queues_release(device);
 	call_venus_op(device, power_off, device);
-	device->resources.fw.cookie = NULL;
+	device->resources.fw.cookie = 0;
 	__deinit_resources(device);
 
 	d_vpr_h("Firmware unloaded successfully\n");
