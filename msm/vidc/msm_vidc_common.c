@@ -7947,13 +7947,13 @@ static int msm_comm_memory_regions_prepare(struct msm_vidc_inst *inst)
 
 	for (i = 0; i < res->prefetch_non_pix_buf_count; i++) {
 		inst->regions.region[i].size = res->prefetch_non_pix_buf_size;
-		inst->regions.region[i].vmid = ION_FLAG_CP_NON_PIXEL;
+		inst->regions.region[i].vmid = MSM_VIDC_SECURE_NONPIXEL;
 	}
 
 	for (i = res->prefetch_non_pix_buf_count;
 		i < inst->regions.num_regions; i++) {
 		inst->regions.region[i].size = res->prefetch_pix_buf_size;
-		inst->regions.region[i].vmid = ION_FLAG_CP_PIXEL;
+		inst->regions.region[i].vmid = MSM_VIDC_SECURE_PIXEL;
 	}
 
 	return 0;

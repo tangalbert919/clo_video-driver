@@ -1,13 +1,26 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2022, The Linux Foundation. All rights reserved.
  */
 
 #include <linux/dma-buf.h>
-#include <linux/ion.h>
+#include <linux/dma-heap.h>
+#include <linux/dma-mapping.h>
+#include <linux/mem-buf.h>
+#include <linux/qcom-dma-mapping.h>
 #include "msm_vidc.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_resources.h"
+
+struct msm_vidc_buf_region_name {
+	enum msm_vidc_buffer_region region;
+	char *name;
+};
+
+static bool is_non_secure_buffer(struct dma_buf *dmabuf)
+{
+	return mem_buf_dma_buf_exclusive_owner(dmabuf);
+}
 
 static int msm_dma_get_device_address(struct dma_buf *dbuf, unsigned long align,
 	dma_addr_t *iova, unsigned long *buffer_size,
@@ -60,9 +73,7 @@ static int msm_dma_get_device_address(struct dma_buf *dbuf, unsigned long align,
 		 * Get the scatterlist for the given attachment
 		 * Mapping of sg is taken care by map attachment
 		 */
-#ifdef _KONA_8250_
 		attach->dma_map_attrs = DMA_ATTR_DELAYED_UNMAP;
-#endif
 		/*
 		 * We do not need dma_map function to perform cache operations
 		 * on the whole buffer size and hence pass skip sync flag.
@@ -70,11 +81,9 @@ static int msm_dma_get_device_address(struct dma_buf *dbuf, unsigned long align,
 		 * required buffer size
 		 */
 		attach->dma_map_attrs |= DMA_ATTR_SKIP_CPU_SYNC;
-#ifdef _KONA_8250_
 		if (res->sys_cache_present)
 			attach->dma_map_attrs |=
 				DMA_ATTR_IOMMU_USE_UPSTREAM_HINT;
-#endif
 
 		table = dma_buf_map_attachment(attach, DMA_BIDIRECTIONAL);
 		if (IS_ERR_OR_NULL(table)) {
@@ -182,7 +191,7 @@ void msm_smem_put_dma_buf(void *dma_buf, u32 sid)
 		return;
 	}
 
-	dma_buf_put((struct dma_buf *)dma_buf);
+	dma_heap_buffer_free((struct dma_buf *)dma_buf);
 }
 
 int msm_smem_map_dma_buf(struct msm_vidc_inst *inst, struct msm_smem *smem)
@@ -222,10 +231,8 @@ int msm_smem_map_dma_buf(struct msm_vidc_inst *inst, struct msm_smem *smem)
 		s_vpr_e(inst->sid, "Failed to get dma buf flags: %d\n", rc);
 		goto fail_map_dma_buf;
 	}
-	if (ion_flags & ION_FLAG_CACHED)
-		smem->flags |= SMEM_CACHED;
 
-	if (ion_flags & ION_FLAG_SECURE)
+	if (!is_non_secure_buffer(dbuf))
 		smem->flags |= SMEM_SECURE;
 
 	if ((smem->buffer_type & b_type) &&
@@ -311,28 +318,28 @@ static int get_secure_flag_for_buffer_type(
 	switch (buffer_type) {
 	case HAL_BUFFER_INPUT:
 		if (session_type == MSM_VIDC_ENCODER)
-			return ION_FLAG_CP_PIXEL;
+			return MSM_VIDC_SECURE_PIXEL;
 		else
-			return ION_FLAG_CP_BITSTREAM;
+			return MSM_VIDC_SECURE_BITSTREAM;
 	case HAL_BUFFER_OUTPUT:
 	case HAL_BUFFER_OUTPUT2:
 		if (session_type == MSM_VIDC_ENCODER)
-			return ION_FLAG_CP_BITSTREAM;
+			return MSM_VIDC_SECURE_BITSTREAM;
 		else
-			return ION_FLAG_CP_PIXEL;
+			return MSM_VIDC_SECURE_PIXEL;
 	case HAL_BUFFER_INTERNAL_SCRATCH:
-		return ION_FLAG_CP_BITSTREAM;
+		return MSM_VIDC_SECURE_BITSTREAM;
 	case HAL_BUFFER_INTERNAL_SCRATCH_1:
-		return ION_FLAG_CP_NON_PIXEL;
+		return MSM_VIDC_SECURE_NONPIXEL;
 	case HAL_BUFFER_INTERNAL_SCRATCH_2:
-		return ION_FLAG_CP_PIXEL;
+		return MSM_VIDC_SECURE_PIXEL;
 	case HAL_BUFFER_INTERNAL_PERSIST:
 		if (session_type == MSM_VIDC_ENCODER)
-			return ION_FLAG_CP_NON_PIXEL;
+			return MSM_VIDC_SECURE_NONPIXEL;
 		else
-			return ION_FLAG_CP_BITSTREAM;
+			return MSM_VIDC_SECURE_BITSTREAM;
 	case HAL_BUFFER_INTERNAL_PERSIST_1:
-		return ION_FLAG_CP_NON_PIXEL;
+		return MSM_VIDC_SECURE_NONPIXEL;
 	default:
 		WARN(1, "No matching secure flag for buffer type : %x\n",
 				buffer_type);
@@ -347,10 +354,10 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 {
 	dma_addr_t iova = 0;
 	unsigned long buffer_size = 0;
-	unsigned long heap_mask = 0;
 	int rc = 0;
-	int ion_flags = 0;
 	struct dma_buf *dbuf = NULL;
+	struct dma_heap *heap;
+	char *heap_name = NULL;
 
 	if (!res) {
 		s_vpr_e(sid, "%s: NULL res\n", __func__);
@@ -360,23 +367,7 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 	align = ALIGN(align, SZ_4K);
 	size = ALIGN(size, SZ_4K);
 
-	if (is_iommu_present(res)) {
-		if (flags & SMEM_ADSP) {
-			s_vpr_h(sid, "Allocating from ADSP heap\n");
-			heap_mask = ION_HEAP(ION_ADSP_HEAP_ID);
-		} else {
-			heap_mask = ION_HEAP(ION_SYSTEM_HEAP_ID);
-		}
-	} else {
-		s_vpr_h(sid,
-			"allocate shared memory from adsp heap size %zx align %d\n",
-			size, align);
-		heap_mask = ION_HEAP(ION_ADSP_HEAP_ID);
-	}
-
-	if (flags & SMEM_CACHED)
-		ion_flags |= ION_FLAG_CACHED;
-
+/* All dma-heap allocations are cached by default. */
 	if ((flags & SMEM_SECURE) ||
 		(buffer_type == HAL_BUFFER_INTERNAL_PERSIST &&
 		 session_type == MSM_VIDC_ENCODER)) {
@@ -388,30 +379,55 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 			goto fail_shared_mem_alloc;
 		}
 
-		ion_flags |= ION_FLAG_SECURE | secure_flag;
-		heap_mask = ION_HEAP(ION_SECURE_HEAP_ID);
-
 		if (res->slave_side_cp) {
-			heap_mask = ION_HEAP(ION_CP_MM_HEAP_ID);
 			size = ALIGN(size, SZ_1M);
 			align = ALIGN(size, SZ_1M);
 		}
 		flags |= SMEM_SECURE;
 	}
 
-	trace_msm_smem_buffer_dma_op_start("ALLOC", (u32)buffer_type,
-		heap_mask, size, align, flags, map_kernel);
-#ifdef _KONA_8250_
-	dbuf = ion_alloc(size, heap_mask, ion_flags);
-#endif
+	if ((flags & SMEM_SECURE) ||
+		(buffer_type == HAL_BUFFER_INTERNAL_PERSIST &&
+		 session_type == MSM_VIDC_ENCODER)) {
+		int secure_flag =
+			get_secure_flag_for_buffer_type(
+				session_type, buffer_type);
+		if (secure_flag < 0) {
+			rc = secure_flag;
+			goto fail_shared_mem_alloc;
+		}
+		switch (secure_flag) {
+		case MSM_VIDC_SECURE_PIXEL:
+			heap_name = "qcom,secure-pixel";
+			break;
+		case MSM_VIDC_SECURE_NONPIXEL:
+			heap_name = "qcom,secure-non-pixel";
+			break;
+		case MSM_VIDC_SECURE_BITSTREAM:
+			heap_name = "qcom,system";
+			break;
+		default:
+			d_vpr_e("invalid secure flag : %#x\n", secure_flag);
+			return -EINVAL;
+		}
+		flags |= SMEM_SECURE;
+	}
+	else {
+		heap_name = "qcom,system";
+	}
+
+	trace_msm_smem_buffer_dma_op_start("alloc", (u32)buffer_type,
+		size, align, flags, map_kernel);
+	heap = dma_heap_find(heap_name);
+	dbuf = dma_heap_buffer_alloc(heap, size, 0, 0);
 	if (IS_ERR_OR_NULL(dbuf)) {
-		s_vpr_e(sid, "Failed to allocate shared memory = %zx, %#x\n",
-		size, flags);
+		s_vpr_e(sid, "Failed to allocate shared memory = %zx, %s\n",
+		size, heap_name);
 		rc = -ENOMEM;
 		goto fail_shared_mem_alloc;
 	}
 	trace_msm_smem_buffer_dma_op_end("ALLOC", (u32)buffer_type,
-		heap_mask, size, align, flags, map_kernel);
+		size, align, flags, map_kernel);
 
 	mem->flags = flags;
 	mem->buffer_type = buffer_type;
@@ -437,22 +453,13 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 
 	if (map_kernel) {
 		dma_buf_begin_cpu_access(dbuf, DMA_BIDIRECTIONAL);
-#ifdef _KONA_8250_
-		mem->kvaddr = dma_buf_vmap(dbuf);
-		if (!mem->kvaddr) {
-			s_vpr_e(sid, "Failed to map shared mem in kernel\n");
-			rc = -EIO;
-			goto fail_map;
-		}
-//#else
-		rc = dma_buf_vmap(mem->dmabuf, &mem->dmabuf_map);
+		rc = dma_buf_vmap(dbuf, &mem->dmabuf_map);
 		if (rc) {
 			d_vpr_e("%s: kernel map failed\n", __func__);
 			rc = -EIO;
-			goto error;
+			goto fail_map;
 		}
 		mem->kvaddr = mem->dmabuf_map.vaddr;
-#endif
 	}
 
 	s_vpr_h(sid,
@@ -462,13 +469,11 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 		mem->kvaddr, mem->buffer_type, mem->flags);
 	return rc;
 
-#ifdef _KONA_8250_
-//fail_map:
-#endif
+fail_map:
 	if (map_kernel)
 		dma_buf_end_cpu_access(dbuf, DMA_BIDIRECTIONAL);
 fail_device_address:
-	dma_buf_put(dbuf);
+	dma_heap_buffer_free(dbuf);
 fail_shared_mem_alloc:
 	return rc;
 }
@@ -491,19 +496,19 @@ static int free_dma_mem(struct msm_smem *mem, u32 sid)
 	}
 
 	if (mem->kvaddr) {
-		dma_buf_vunmap(dbuf, mem->kvaddr);
+		dma_buf_vunmap(dbuf, &mem->dmabuf_map);
 		mem->kvaddr = NULL;
 		dma_buf_end_cpu_access(dbuf, DMA_BIDIRECTIONAL);
 	}
 
 	if (dbuf) {
 		trace_msm_smem_buffer_dma_op_start("FREE",
-				(u32)mem->buffer_type, -1, mem->size, -1,
+				(u32)mem->buffer_type, mem->size, -1,
 				mem->flags, -1);
-		dma_buf_put(dbuf);
+		dma_heap_buffer_free(dbuf);
 		mem->dma_buf = NULL;
 		trace_msm_smem_buffer_dma_op_end("FREE", (u32)mem->buffer_type,
-			-1, mem->size, -1, mem->flags, -1);
+			mem->size, -1, mem->flags, -1);
 	}
 
 	return 0;
@@ -546,21 +551,10 @@ int msm_smem_cache_operations(struct dma_buf *dbuf,
 	unsigned long size, u32 sid)
 {
 	int rc = 0;
-	unsigned long flags = 0;
 
 	if (!dbuf) {
 		s_vpr_e(sid, "%s: invalid params\n", __func__);
 		return -EINVAL;
-	}
-
-	/* Return if buffer doesn't support caching */
-	rc = dma_buf_get_flags(dbuf, &flags);
-	if (rc) {
-		s_vpr_e(sid, "%s: dma_buf_get_flags failed, err %d\n",
-			__func__, rc);
-		return rc;
-	} else if (!(flags & ION_FLAG_CACHED)) {
-		return rc;
 	}
 
 	switch (cache_op) {

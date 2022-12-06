@@ -636,6 +636,15 @@ enum msm_vidc_flags {
 	MSM_VIDC_FLAG_QUEUED              = BIT(2),
 };
 
+enum msm_vidc_buffer_region {
+	MSM_VIDC_REGION_NONE = 0,
+	MSM_VIDC_NON_SECURE,
+	MSM_VIDC_NON_SECURE_PIXEL,
+	MSM_VIDC_SECURE_PIXEL,
+	MSM_VIDC_SECURE_NONPIXEL,
+	MSM_VIDC_SECURE_BITSTREAM,
+};
+
 struct msm_vidc_buffer {
 	struct list_head list;
 	struct kref kref;

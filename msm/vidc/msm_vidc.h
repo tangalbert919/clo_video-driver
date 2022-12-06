@@ -1,13 +1,13 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
- * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2012-2022, The Linux Foundation. All rights reserved.
  */
 
 #ifndef _MSM_VIDC_H_
 #define _MSM_VIDC_H_
 
 #include <linux/videodev2.h>
-#include <linux/msm_ion.h>
+#include <linux/dma-buf-map.h>
 #include "vidc/media/msm_vidc_utils.h"
 #include <media/media-device.h>
 
@@ -74,6 +74,7 @@ struct msm_smem {
 	unsigned long flags;
 	enum hal_buffer buffer_type;
 	struct dma_mapping_info mapping_info;
+	struct dma_buf_map dmabuf_map;
 };
 
 enum smem_cache_ops {
