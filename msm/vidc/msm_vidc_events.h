@@ -235,16 +235,15 @@ DEFINE_EVENT(msm_v4l2_vidc_buffer_events, msm_v4l2_vidc_buffer_event_end,
 
 DECLARE_EVENT_CLASS(msm_smem_buffer_dma_ops,
 
-	TP_PROTO(char *buffer_op, u32 buffer_type, u32 heap_mask,
-		size_t size, u32 align, u32 flags, int map_kernel),
+	TP_PROTO(char *buffer_op, u32 buffer_type, size_t size,
+		u32 align, u32 flags, int map_kernel),
 
-	TP_ARGS(buffer_op, buffer_type, heap_mask, size, align,
-		flags, map_kernel),
+	TP_ARGS(buffer_op, buffer_type, size, align, flags,
+		map_kernel),
 
 	TP_STRUCT__entry(
 		__field(char *, buffer_op)
 		__field(u32, buffer_type)
-		__field(u32, heap_mask)
 		__field(u32, size)
 		__field(u32, align)
 		__field(u32, flags)
@@ -254,7 +253,6 @@ DECLARE_EVENT_CLASS(msm_smem_buffer_dma_ops,
 	TP_fast_assign(
 		__entry->buffer_op = buffer_op;
 		__entry->buffer_type = buffer_type;
-		__entry->heap_mask = heap_mask;
 		__entry->size = size;
 		__entry->align = align;
 		__entry->flags = flags;
@@ -262,10 +260,9 @@ DECLARE_EVENT_CLASS(msm_smem_buffer_dma_ops,
 	),
 
 	TP_printk(
-		"%s, buffer_type : 0x%x, heap_mask : 0x%x, size : 0x%x, align : 0x%x, flags : 0x%x, map_kernel : %d",
+		"%s, buffer_type : 0x%x, size : 0x%x, align : 0x%x, flags : 0x%x, map_kernel : %d",
 		__entry->buffer_op,
 		__entry->buffer_type,
-		__entry->heap_mask,
 		__entry->size,
 		__entry->align,
 		__entry->flags,
@@ -274,20 +271,18 @@ DECLARE_EVENT_CLASS(msm_smem_buffer_dma_ops,
 
 DEFINE_EVENT(msm_smem_buffer_dma_ops, msm_smem_buffer_dma_op_start,
 
-	TP_PROTO(char *buffer_op, u32 buffer_type, u32 heap_mask,
-		size_t size, u32 align, u32 flags, int map_kernel),
+	TP_PROTO(char *buffer_op, u32 buffer_type, size_t size,
+		u32 align, u32 flags, int map_kernel),
 
-	TP_ARGS(buffer_op, buffer_type, heap_mask, size, align,
-		flags, map_kernel)
+	TP_ARGS(buffer_op, buffer_type, size, align, flags, map_kernel)
 );
 
 DEFINE_EVENT(msm_smem_buffer_dma_ops, msm_smem_buffer_dma_op_end,
 
-	TP_PROTO(char *buffer_op, u32 buffer_type, u32 heap_mask,
-		size_t size, u32 align, u32 flags, int map_kernel),
+	TP_PROTO(char *buffer_op, u32 buffer_type, size_t size,
+		u32 align, u32 flags, int map_kernel),
 
-	TP_ARGS(buffer_op, buffer_type, heap_mask, size, align,
-		flags, map_kernel)
+	TP_ARGS(buffer_op, buffer_type, size, align, flags, map_kernel)
 );
 
 DECLARE_EVENT_CLASS(msm_smem_buffer_iommu_ops,

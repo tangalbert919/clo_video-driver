@@ -380,8 +380,8 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 		}
 	}
 
-	/*trace_msm_smem_buffer_dma_op_start("ALLOC", (u32)buffer_type,
-		heap_mask, size, align, flags, map_kernel);*/
+	trace_msm_smem_buffer_dma_op_start("ALLOC", (u32)buffer_type,
+		size, align, flags, map_kernel);
 	heap = dma_heap_find(heap_name);
 	dbuf = dma_heap_buffer_alloc(heap, size, 0, 0);
 	if (IS_ERR_OR_NULL(dbuf)) {
@@ -389,8 +389,8 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 		rc = -ENOMEM;
 		goto fail_shared_mem_alloc;
 	}
-	/*trace_msm_smem_buffer_dma_op_end("ALLOC", (u32)buffer_type,
-		heap_mask, size, align, flags, map_kernel);*/
+	trace_msm_smem_buffer_dma_op_end("ALLOC", (u32)buffer_type,
+		size, align, flags, map_kernel);
 
 	mem->flags = flags;
 	mem->buffer_type = buffer_type;
@@ -466,12 +466,12 @@ static int free_dma_mem(struct msm_smem *mem, u32 sid)
 
 	if (dbuf) {
 		trace_msm_smem_buffer_dma_op_start("FREE",
-				(u32)mem->buffer_type, -1, mem->size, -1,
+				(u32)mem->buffer_type, mem->size, -1,
 				mem->flags, -1);
 		dma_heap_buffer_free(dbuf);
 		mem->dma_buf = NULL;
 		trace_msm_smem_buffer_dma_op_end("FREE", (u32)mem->buffer_type,
-			-1, mem->size, -1, mem->flags, -1);
+			mem->size, -1, mem->flags, -1);
 	}
 
 	return 0;
