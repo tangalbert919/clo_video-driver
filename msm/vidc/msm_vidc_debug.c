@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #define CREATE_TRACE_POINTS
 #define MAX_SSR_STRING_LEN 64
 #define MAX_DEBUG_LEVEL_STRING_LEN 15
+#include <soc/qcom/of_common.h>
 #include "msm_vidc_debug.h"
 #include "vidc_hfi_api.h"
 
@@ -91,10 +93,8 @@ static ssize_t core_info_read(struct file *file, char __user *buf,
 	cur += write_str(cur, end - cur,
 		"register_size: %u\n", fw_info.register_size);
 	cur += write_str(cur, end - cur, "irq: %u\n", fw_info.irq);
-#ifdef _KONA_8250_
 	cur += write_str(cur, end - cur,
 		"ddr_type: %d\n", of_fdt_get_ddrtype());
-#endif
 
 err_fw_info:
 	for (i = SYS_MSG_START; i < SYS_MSG_END; i++) {
@@ -209,9 +209,6 @@ static const struct file_operations debug_level_fops = {
 
 struct dentry *msm_vidc_debugfs_init_drv(void)
 {
-#ifdef _KONA_8250_
-	//bool ok = false;
-#endif
 	struct dentry *dir = NULL;
 
 	msm_vidc_vpp_delay = 0;
@@ -222,23 +219,10 @@ struct dentry *msm_vidc_debugfs_init_drv(void)
 		goto failed_create_dir;
 	}
 
-#ifdef _KONA_8250_
-#define __debugfs_create(__type, __name, __value) ({                          \
-	struct dentry *f = debugfs_create_##__type(__name, 0644,	\
-		dir, __value);                                                \
-	if (IS_ERR_OR_NULL(f)) {                                              \
-		d_vpr_e("Failed creating debugfs file '%pd/%s'\n",  \
-			dir, __name);                                         \
-		f = NULL;                                                     \
-	}                                                                     \
-	f;                                                                    \
-})
-#else
 #define __debugfs_create(__type, __name, __value) ({                          \
 	debugfs_create_##__type(__name, 0644,	\
 		dir, __value);                                                \
 })
-#endif
 
 	__debugfs_create(u32, "fw_debug_mode", &msm_vidc_fw_debug_mode);
 	__debugfs_create(bool, "fw_coverage", &msm_vidc_fw_coverage);
@@ -690,13 +674,6 @@ inline void update_log_ctxt(u32 sid, u32 session_type, u32 fourcc)
 	vidc_driver->ctxt[sid-1].name[4] = type;
 	vidc_driver->ctxt[sid-1].name[5] = '\0';
 }
-
-#ifdef _KONA_8250_
-/* Mock all the missing parts for successful compilation starts here */
-void do_gettimeofday(struct timeval *__ddl_tv)
-{
-}
-#endif
 
 #ifndef CONFIG_VIDEOBUF2_CORE
 void vb2_queue_release(struct vb2_queue *q)

@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
 #include <linux/of_platform.h>
 #include <linux/io.h>
+#include <soc/qcom/of_common.h>
 #include "msm_vidc_internal.h"
 #include "msm_vidc_debug.h"
 
@@ -2678,13 +2680,10 @@ static inline void msm_vidc_ddr_ubwc_config(
 {
 	uint32_t ddr_type = DDR_TYPE_LPDDR5;
 
-#ifdef _KONA_8250_
-//#if (KERNEL_VERSION(5, 15, 0) > LINUX_VERSION_CODE)
 	ddr_type = of_fdt_get_ddrtype();
 	if (ddr_type == -ENOENT) {
 		d_vpr_e("Failed to get ddr type, use LPDDR5\n");
 	}
-#endif
 
 	if (driver_data->ubwc_config &&
 		(ddr_type == DDR_TYPE_LPDDR4 ||

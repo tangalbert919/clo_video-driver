@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved.
  */
-
-#ifdef _KONA_8250_
-//#include <soc/qcom/subsystem_restart.h>
-#endif
 
 #include "msm_vidc_common.h"
 #include "vidc_hfi_api.h"
@@ -2210,10 +2207,6 @@ static void handle_sys_error(enum hal_command_response cmd, void *data)
 	int rc = 0;
 	bool panic = false;
 
-#ifdef _KONA_8250_
-	//subsystem_crashed("venus");
-#endif
-
 	if (!response) {
 		d_vpr_e("Failed to get valid response for sys error\n");
 		return;
@@ -2315,9 +2308,7 @@ static void handle_session_close(enum hal_command_response cmd, void *data)
 
 	s_vpr_l(inst->sid, "handled: SESSION_END_DONE\n");
 	signal_session_msg_receipt(cmd, inst);
-#ifdef _KONA_8250_
-	//show_stats(inst);
-#endif
+	show_stats(inst);
 	put_inst(inst);
 }
 
