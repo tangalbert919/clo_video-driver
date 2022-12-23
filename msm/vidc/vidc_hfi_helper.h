@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __H_VIDC_HFI_HELPER_H__
@@ -339,6 +340,8 @@ struct hfi_buffer_info {
 #define HFI_PROPERTY_PARAM_HEVC_PPS_CB_CR_OFFSET \
 	(HFI_PROPERTY_PARAM_VENC_COMMON_START + 0x040)
 #define  HFI_PROPERTY_PARAM_VENC_BITRATE_BOOST \
+	(HFI_PROPERTY_PARAM_VENC_COMMON_START + 0x041)
+#define HFI_PROPERTY_PARAM_ENABLE_ONLY_BASE_LAYER_IR \
 	(HFI_PROPERTY_PARAM_VENC_COMMON_START + 0x041)
 
 #define HFI_PROPERTY_CONFIG_VENC_COMMON_START				\

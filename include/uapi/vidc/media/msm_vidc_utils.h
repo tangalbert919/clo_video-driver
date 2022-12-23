@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0 WITH Linux-syscall-note */
 /*
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __MSM_VIDC_UTILS_H__
@@ -264,6 +265,8 @@ enum v4l2_mpeg_vidc_video_bitrate_savings_type {
 		(V4L2_CID_MPEG_MSM_VIDC_BASE + 136)
 #define V4L2_CID_MPEG_VIDC_VENC_COMPLEXITY \
 		(V4L2_CID_MPEG_MSM_VIDC_BASE + 137)
+#define V4L2_CID_MPEG_VIDC_ENABLE_ONLY_BASE_LAYER_IR \
+		(V4L2_CID_MPEG_MSM_VIDC_BASE + 138)
 
 #define V4L2_CID_MPEG_VIDC_VIDEO_UNKNOWN \
 		(V4L2_CID_MPEG_MSM_VIDC_BASE + 0xFFF)
