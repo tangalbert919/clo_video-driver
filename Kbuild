@@ -14,7 +14,7 @@ LINUXINCLUDE    += -I$(VIDEO_ROOT)/include \
 
 USERINCLUDE     += -I$(VIDEO_ROOT)/include/uapi
 
-obj-m := msm-vidc.o
+obj-$(CONFIG_MSM_VIDC_V4L2) := msm-vidc.o
 
 msm-vidc-objs := msm/vidc/msm_v4l2_vidc.o \
                  msm/vidc/msm_v4l2_private.o \
