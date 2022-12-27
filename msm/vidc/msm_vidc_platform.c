@@ -2786,6 +2786,7 @@ void *vidc_get_drv_data(struct device *dev)
 		msm_vidc_ddr_ubwc_config(driver_data, 0xe);
 		driver_data->max_inst_count = MAX_SUPPORTED_INSTANCES_24;
 	} else if (!strcmp(match->compatible, "qcom,kona-vidc")) {
+		driver_data->max_inst_count = MAX_SUPPORTED_INSTANCES_24;
 		msm_vidc_ddr_ubwc_config(driver_data, 0xe);
 	}
 exit:
