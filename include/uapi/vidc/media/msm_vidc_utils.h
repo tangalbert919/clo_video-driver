@@ -643,7 +643,7 @@ struct msm_vidc_metadata_ltr_payload {
 /*default when layer ID isn't specified*/
 #define MSM_VIDC_ALL_LAYER_ID 0xFF
 
-static inline unsigned int VENUS_EXTRADATA_SIZE(int width, int height)
+unsigned int __attribute__ ((weak)) VENUS_EXTRADATA_SIZE(int width, int height)
 {
 	(void)height;
 	(void)width;
@@ -687,5 +687,9 @@ enum msm_vidc_cb_event_types {
 	MSM_VIDC_PIC_STRUCT,
 	MSM_VIDC_COLOR_SPACE,
 	MSM_VIDC_FW_MIN_COUNT,
+	MSM_VIDC_CROP_LEFT,
+	MSM_VIDC_CROP_TOP,
+	MSM_VIDC_CROP_WIDTH,
+	MSM_VIDC_CROP_HEIGHT,
 };
 #endif
