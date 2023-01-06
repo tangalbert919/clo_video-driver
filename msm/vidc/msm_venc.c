@@ -3540,75 +3540,8 @@ setprop:
 		sizeof(enable));
 	if (rc)
 		s_vpr_e(inst->sid, "%s: set property failed\n", __func__);
-	else {
-		if (!inst->core->resources.boost_margin_disable) {
-			rc = msm_venc_set_bitrate_boost_margin(inst, enable.enable);
-		}
-	}
 	return rc;
 }
-
-int msm_venc_set_bitrate_boost_margin(struct msm_vidc_inst *inst, u32 enable)
-{
-	int rc = 0;
-	struct hfi_device *hdev;
-	struct v4l2_ctrl *ctrl = NULL;
-	struct hfi_bitrate_boost_margin boost_margin;
-	int minqp, maxqp;
-	uint32_t vpu;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
-		return -EINVAL;
-	}
-	hdev = inst->core->device;
-	vpu = inst->core->platform_data->vpu_ver;
-
-	if (!enable) {
-		boost_margin.margin = 0;
-		goto setprop;
-	}
-
-	ctrl = get_ctrl(inst, V4L2_CID_MPEG_VIDC_VENC_BITRATE_BOOST);
-
-	/*
-	 * For certain SOC, default value should be 0 unless client enabled
-	 */
-	if (!inst->boost_enabled && vpu == VPU_VERSION_AR50_LITE) {
-		ctrl->val = 0;
-		update_ctrl(ctrl, 0, inst->sid);
-	}
-	/* Mapped value to 0, 15, 25 or 50*/
-	if (ctrl->val >= 50)
-		boost_margin.margin = 50;
-	else if (ctrl->val >= 25)
-		boost_margin.margin = (u32)(ctrl->val/25) * 25;
-	else
-		boost_margin.margin = (u32)(ctrl->val/15) * 15;
-
-setprop:
-	s_vpr_h(inst->sid, "%s: %d\n", __func__, boost_margin.margin);
-	rc = call_hfi_op(hdev, session_set_property, inst->session,
-		HFI_PROPERTY_PARAM_VENC_BITRATE_BOOST, &boost_margin,
-		sizeof(boost_margin));
-	if (rc)
-		s_vpr_e(inst->sid, "%s: set property failed\n", __func__);
-
-	/* Boost QP range is only enabled when bitrate boost is enabled
-	 * and boost QP range is set by client
-	 */
-	ctrl = get_ctrl(inst, V4L2_CID_MPEG_VIDC_VENC_QPRANGE_BOOST);
-	if (enable && ctrl->val) {
-		minqp = ctrl->val & 0xFF;
-		maxqp = (ctrl->val >> 8) & 0xFF;
-		inst->boost_qp_enabled = true;
-		inst->boost_min_qp = minqp | (minqp << 8) | (minqp << 16);
-		inst->boost_max_qp = maxqp | (maxqp << 8) | (maxqp << 16);
-	}
-
-	return rc;
-}
-
 
 int msm_venc_set_loop_filter_mode(struct msm_vidc_inst *inst)
 {
