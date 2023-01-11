@@ -27,6 +27,7 @@
 #define MAX_QP                  51
 #define DEFAULT_QP              20
 #define MAX_CONSTANT_QUALITY    100
+#define MAX_BITRATE_BOOST       25
 #define MIN_SLICE_BYTE_SIZE     512
 #define MAX_SLICE_BYTE_SIZE       \
 	((MAX_BITRATE) >> 3)
@@ -554,7 +555,9 @@ static struct msm_platform_inst_capability instance_data_waipio[] = {
 		0, MAX_BASE_LAYER_PRIORITY_ID, 1, 0,
 		V4L2_CID_MPEG_VIDEO_BASELAYER_PRIORITY_ID,
 		HFI_PROP_BASELAYER_PRIORITYID,
-		CAP_FLAG_ROOT | CAP_FLAG_OUTPUT_PORT},
+		CAP_FLAG_ROOT | CAP_FLAG_OUTPUT_PORT,
+		{0}, {0},
+		NULL, msm_vidc_set_u32},
 
 	{IR_RANDOM, ENC, H264|HEVC,
 		0, INT_MAX, 1, 0,
@@ -595,7 +598,8 @@ static struct msm_platform_inst_capability instance_data_waipio[] = {
 		msm_vidc_set_vbr_related_properties},
 
 	{BITRATE_BOOST, ENC, H264|HEVC,
-		0, MAX_BITRATE_BOOST, 25, MAX_BITRATE_BOOST,
+		0, MAX_BITRATE_BOOST,
+		MAX_BITRATE_BOOST, MAX_BITRATE_BOOST,
 		V4L2_CID_MPEG_VIDC_QUALITY_BITRATE_BOOST,
 		HFI_PROP_BITRATE_BOOST,
 		CAP_FLAG_OUTPUT_PORT,
@@ -2177,7 +2181,9 @@ static struct msm_platform_inst_capability instance_data_tofino[] = {
 		0, MAX_BASE_LAYER_PRIORITY_ID, 1, 0,
 		V4L2_CID_MPEG_VIDEO_BASELAYER_PRIORITY_ID,
 		HFI_PROP_BASELAYER_PRIORITYID,
-		CAP_FLAG_ROOT | CAP_FLAG_OUTPUT_PORT},
+		CAP_FLAG_ROOT | CAP_FLAG_OUTPUT_PORT,
+		{0}, {0},
+		NULL, msm_vidc_set_u32},
 
 	{IR_RANDOM, ENC, H264 | HEVC,
 		0, INT_MAX, 1, 0,
@@ -2218,7 +2224,8 @@ static struct msm_platform_inst_capability instance_data_tofino[] = {
 		msm_vidc_set_vbr_related_properties},
 
 	{BITRATE_BOOST, ENC, H264 | HEVC,
-		0, MAX_BITRATE_BOOST, 25, MAX_BITRATE_BOOST,
+		0, MAX_BITRATE_BOOST,
+		MAX_BITRATE_BOOST, MAX_BITRATE_BOOST,
 		V4L2_CID_MPEG_VIDC_QUALITY_BITRATE_BOOST,
 		HFI_PROP_BITRATE_BOOST,
 		CAP_FLAG_OUTPUT_PORT,
