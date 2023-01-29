@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
+ifeq ($(CONFIG_QTI_QUIN_GVM), y)
+export CONFIG_MSM_VIDC_V4L2=n
+else
+export CONFIG_MSM_VIDC_V4L2=m
+endif
+
 ifneq ($(CONFIG_ARCH_LEMANS), y)
 KBUILD_CPPFLAGS += -DCONFIG_MSM_MMRM=1
 endif
@@ -42,7 +48,7 @@ LINUXINCLUDE    += -I$(VIDEO_ROOT)/driver/vidc/inc \
 USERINCLUDE     += -I$(VIDEO_ROOT)/include/uapi/vidc/media \
                    -I$(VIDEO_ROOT)/include/uapi/vidc
 
-obj-m += msm_video.o
+obj-$(CONFIG_MSM_VIDC_V4L2) += msm_video.o
 
 ifeq ($(CONFIG_MSM_VIDC_WAIPIO), y)
 msm_video-objs += driver/platform/waipio/src/msm_vidc_waipio.o
