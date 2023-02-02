@@ -58,6 +58,15 @@ int msm_v4l2_close(struct file *filp)
 	inst = get_vidc_inst(filp, NULL);
 	trace_msm_v4l2_vidc_close("START", inst);
 
+	/* explicit call to streamoff in case of no vidioc_streamoff op
+	 * if quit abnormally using kill/Ctrl+C.
+	 * Thus, resulting in vb2_queue_release hang on msm_vidc_vb2_queue_deinit
+	 */
+	rc = msm_vidc_streamoff((void *)inst, OUTPUT_MPLANE);
+	rc = msm_vidc_streamoff((void *)inst, OUTPUT_META_PLANE);
+	rc = msm_vidc_streamoff((void *)inst, INPUT_MPLANE);
+	rc = msm_vidc_streamoff((void *)inst, INPUT_META_PLANE);
+
 	rc = msm_vidc_close(inst);
 	filp->private_data = NULL;
 	trace_msm_v4l2_vidc_close("END", NULL);
