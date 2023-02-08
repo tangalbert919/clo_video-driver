@@ -448,6 +448,13 @@ static int __power_off_iris3_controller(struct msm_vidc_core *core)
 		rc = 0;
 	}
 
+	/* Turn off GCC AXI clock */
+	rc = call_res_op(core, clk_disable, core, "gcc_video_axi0");
+	if (rc) {
+		d_vpr_e("%s: disable unprepare gcc_video_axi0 failed\n", __func__);
+		rc = 0;
+	}
+
 	/* power down process */
 	rc = call_res_op(core, gdsc_off, core, "iris-ctl");
 	if (rc) {
