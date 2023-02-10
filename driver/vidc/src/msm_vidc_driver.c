@@ -5784,6 +5784,7 @@ static const char *get_codec_str(enum msm_vidc_codec_type type)
 	case MSM_VIDC_VP9:  return " vp9";
 	case MSM_VIDC_AV1:  return " av1";
 	case MSM_VIDC_HEIC: return "heic";
+	case MSM_VIDC_MPEG2: return "mpeg2";
 	}
 
 	return "....";

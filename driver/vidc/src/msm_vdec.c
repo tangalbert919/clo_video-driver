@@ -67,6 +67,16 @@ static const u32 msm_vdec_subscribe_for_psc_av1[] = {
 	HFI_PROP_SIGNAL_COLOR_INFO,
 };
 
+static const u32 msm_vdec_subscribe_for_psc_mpeg2[] = {
+	HFI_PROP_BITSTREAM_RESOLUTION,
+	HFI_PROP_CROP_OFFSETS,
+	HFI_PROP_LUMA_CHROMA_BIT_DEPTH,
+	HFI_PROP_CODED_FRAMES,
+	HFI_PROP_BUFFER_FW_MIN_OUTPUT_COUNT,
+	HFI_PROP_PROFILE,
+	HFI_PROP_LEVEL,
+};
+
 static const u32 msm_vdec_input_subscribe_for_properties[] = {
 	HFI_PROP_NO_OUTPUT,
 	HFI_PROP_SUBFRAME_INPUT,
@@ -899,6 +909,9 @@ static int msm_vdec_subscribe_input_port_settings_change(struct msm_vidc_inst *i
 	} else if (inst->codec == MSM_VIDC_AV1) {
 		subscribe_psc_size = ARRAY_SIZE(msm_vdec_subscribe_for_psc_av1);
 		psc = msm_vdec_subscribe_for_psc_av1;
+	} else if (inst->codec == MSM_VIDC_MPEG2) {
+		subscribe_psc_size = ARRAY_SIZE(msm_vdec_subscribe_for_psc_mpeg2);
+		psc = msm_vdec_subscribe_for_psc_mpeg2;
 	} else {
 		i_vpr_e(inst, "%s: unsupported codec: %d\n", __func__, inst->codec);
 		psc = NULL;
@@ -1593,6 +1606,9 @@ static int msm_vdec_subscribe_output_port_settings_change(struct msm_vidc_inst *
 	} else if (inst->codec == MSM_VIDC_AV1) {
 		subscribe_psc_size = ARRAY_SIZE(msm_vdec_subscribe_for_psc_av1);
 		psc = msm_vdec_subscribe_for_psc_av1;
+	} else if (inst->codec == MSM_VIDC_MPEG2) {
+		subscribe_psc_size = ARRAY_SIZE(msm_vdec_subscribe_for_psc_mpeg2);
+		psc = msm_vdec_subscribe_for_psc_mpeg2;
 	} else {
 		i_vpr_e(inst, "%s: unsupported codec: %d\n", __func__, inst->codec);
 		psc = NULL;

@@ -33,7 +33,8 @@
 #define H264    MSM_VIDC_H264
 #define HEVC    MSM_VIDC_HEVC
 #define VP9     MSM_VIDC_VP9
-#define CODECS_ALL     (H264 | HEVC | VP9)
+#define MPEG2   MSM_VIDC_MPEG2
+#define CODECS_ALL     (H264 | HEVC | VP9 | MPEG2)
 #define MAXIMUM_OVERRIDE_VP9_FPS 180
 
 #ifndef V4L2_PIX_FMT_QC08C
@@ -59,6 +60,11 @@ static struct codec_info codec_data_lemans[] = {
 		.v4l2_codec  = V4L2_PIX_FMT_VP9,
 		.vidc_codec  = MSM_VIDC_VP9,
 		.pixfmt_name = "VP9",
+	},
+	{
+		.v4l2_codec  = V4L2_PIX_FMT_MPEG2,
+		.vidc_codec  = MSM_VIDC_MPEG2,
+		.pixfmt_name = "MPEG2",
 	},
 };
 
@@ -186,7 +192,7 @@ static struct matrix_coeff_info matrix_coeff_data_lemans[] = {
 static struct msm_platform_core_capability core_data_lemans[] = {
 	/* {type, value} */
 	{ENC_CODECS, H264|HEVC},
-	{DEC_CODECS, H264|HEVC|VP9},
+	{DEC_CODECS, H264|HEVC|VP9|MPEG2},
 	{MAX_SESSION_COUNT, 16},
 	{MAX_NUM_720P_SESSIONS, 16},
 	{MAX_NUM_1080P_SESSIONS, 16},
@@ -233,6 +239,8 @@ static struct msm_platform_inst_capability instance_cap_data_lemans[] = {
 
 	{FRAME_WIDTH, DEC, VP9, 96, 4096, 1, 1920},
 
+	{FRAME_WIDTH, DEC, MPEG2, 96, 1920, 1, 1920},
+
 	{FRAME_WIDTH, ENC, CODECS_ALL, 128, 8192, 1, 1920},
 
 	{FRAME_WIDTH, ENC, HEVC, 96, 8192, 1, 1920},
@@ -245,6 +253,8 @@ static struct msm_platform_inst_capability instance_cap_data_lemans[] = {
 
 	{FRAME_HEIGHT, DEC, VP9, 96, 4096, 1, 1080},
 
+	{FRAME_HEIGHT, DEC, MPEG2, 96, 1920, 1, 1080},
+
 	{FRAME_HEIGHT, ENC, CODECS_ALL, 128, 8192, 1, 1080},
 
 	{FRAME_HEIGHT, ENC, HEVC, 96, 8192, 1, 1080},
@@ -253,7 +263,7 @@ static struct msm_platform_inst_capability instance_cap_data_lemans[] = {
 
 	{LOSSLESS_FRAME_HEIGHT, ENC, HEVC, 96, 4096, 1, 1080},
 
-	{PIX_FMTS, ENC|DEC, H264,
+	{PIX_FMTS, ENC|DEC, H264|MPEG2,
 		MSM_VIDC_FMT_NV12,
 		MSM_VIDC_FMT_NV12C,
 		MSM_VIDC_FMT_NV12 | MSM_VIDC_FMT_NV21 | MSM_VIDC_FMT_NV12C,
@@ -890,6 +900,16 @@ static struct msm_platform_inst_capability instance_cap_data_lemans[] = {
 		HFI_PROP_PROFILE,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
+	{PROFILE, DEC, MPEG2,
+		V4L2_MPEG_VIDEO_MPEG2_PROFILE_SIMPLE,
+		V4L2_MPEG_VIDEO_MPEG2_PROFILE_MAIN,
+		BIT(V4L2_MPEG_VIDEO_MPEG2_PROFILE_SIMPLE) |
+		BIT(V4L2_MPEG_VIDEO_MPEG2_PROFILE_MAIN),
+		V4L2_MPEG_VIDEO_MPEG2_PROFILE_SIMPLE,
+		V4L2_CID_MPEG_VIDEO_MPEG2_PROFILE,
+		HFI_PROP_PROFILE,
+		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
+
 	{LEVEL, ENC, H264,
 		V4L2_MPEG_VIDEO_H264_LEVEL_1_0,
 		V4L2_MPEG_VIDEO_H264_LEVEL_6_0,
@@ -1001,6 +1021,18 @@ static struct msm_platform_inst_capability instance_cap_data_lemans[] = {
 		BIT(V4L2_MPEG_VIDEO_VP9_LEVEL_6_0),
 		V4L2_MPEG_VIDEO_VP9_LEVEL_6_0,
 		V4L2_CID_MPEG_VIDEO_VP9_LEVEL,
+		HFI_PROP_LEVEL,
+		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
+
+	{LEVEL, DEC, MPEG2,
+		V4L2_MPEG_VIDEO_MPEG2_LEVEL_LOW,
+		V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH,
+		BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_LOW) |
+		BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_MAIN) |
+		BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH_1440) |
+		BIT(V4L2_MPEG_VIDEO_MPEG2_LEVEL_HIGH),
+		V4L2_MPEG_VIDEO_MPEG2_LEVEL_LOW,
+		V4L2_CID_MPEG_VIDEO_MPEG2_LEVEL,
 		HFI_PROP_LEVEL,
 		CAP_FLAG_OUTPUT_PORT | CAP_FLAG_MENU},
 
