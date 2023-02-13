@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: GPL-2.0-only
 
-KBUILD_OPTIONS+= VIDEO_ROOT=$(KERNEL_SRC)/$(M)
+CUR_MKFILE = $(abspath $(lastword $(MAKEFILE_LIST)))
+VIDEO_ROOT = $(dir $(CUR_MKFILE))
+KBUILD_OPTIONS+= VIDEO_ROOT=${VIDEO_ROOT}
 
 VIDEO_COMPILE_TIME = $(shell date)
 VIDEO_COMPILE_BY = $(shell whoami | sed 's/\\/\\\\/')
