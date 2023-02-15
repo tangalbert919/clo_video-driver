@@ -383,6 +383,11 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 	trace_msm_smem_buffer_dma_op_start("ALLOC", (u32)buffer_type,
 		size, align, flags, map_kernel);
 	heap = dma_heap_find(heap_name);
+	if (IS_ERR_OR_NULL(heap)) {
+		d_vpr_e("%s: dma heap %s find failed\n", __func__, heap_name);
+		rc = -ENOMEM;
+		goto fail_shared_mem_alloc;
+	}
 	dbuf = dma_heap_buffer_alloc(heap, size, 0, 0);
 	if (IS_ERR_OR_NULL(dbuf)) {
 		d_vpr_e("%s: dma heap %s alloc failed\n", __func__, heap_name);
