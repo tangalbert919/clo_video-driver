@@ -4,7 +4,10 @@
  */
 
 #include <linux/iommu.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0))
 #include <linux/dma-iommu.h>
+#endif
 #include <linux/of.h>
 #include <linux/sort.h>
 #include <linux/of_reserved_mem.h>

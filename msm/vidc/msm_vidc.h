@@ -9,6 +9,7 @@
 #include <linux/dma-buf.h>
 #include <linux/videodev2.h>
 #include <linux/msm_ion.h>
+#include <linux/version.h>
 #include "vidc/media/msm_vidc_private.h"
 #include "vidc/media/msm_vidc_utils.h"
 #include <media/media-device.h>
@@ -16,6 +17,9 @@
 #define HAL_BUFFER_MAX 0xe
 #define CVP_FRAME_RATE_MAX (60)
 #define MEMORY_REGIONS_MAX 30
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0))
+MODULE_IMPORT_NS(DMA_BUF);
+#endif
 
 enum smem_type {
 	SMEM_DMA = 1,
@@ -68,7 +72,11 @@ struct msm_smem {
 	u32 refcount;
 	int fd;
 	void *dma_buf;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5,16,0))
+	struct iosys_map dmabuf_map;
+#else
 	struct dma_buf_map dmabuf_map;
+#endif
 	void *kvaddr;
 	u32 device_addr;
 	dma_addr_t dma_handle;
