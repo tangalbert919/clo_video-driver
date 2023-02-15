@@ -18,3 +18,7 @@ BUILD_VIDEO_TECHPACK_SOURCE := true
 endif
 endif
 endif
+
+ifeq ($(ENABLE_HYP),true)
+BUILD_VIDEO_TECHPACK_SOURCE := true
+endif
