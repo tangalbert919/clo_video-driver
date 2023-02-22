@@ -1327,11 +1327,11 @@ static struct msm_vidc_common_data yupik_common_data_v0[] = {
 	},
 	{
 		.key = "qcom,max-hq-mbs-per-frame",
-		.value = 8160, /* ((1920x1088)/256) */
+		.value = 1900, /* ((800x608)/256) */
 	},
 	{
 		.key = "qcom,max-hq-mbs-per-sec",
-		.value = 244800, /* ((1920x1088)/256)@30fps */
+		.value = 57000, /* ((800x608)/256)@30fps */
 	},
 	{
 		.key = "qcom,max-b-frame-mbs-per-frame",
