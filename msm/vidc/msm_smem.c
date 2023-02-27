@@ -414,7 +414,17 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 		flags |= SMEM_SECURE;
 	}
 	else {
-		heap_name = "qcom,system";
+		if (buffer_type == HAL_BUFFER_INTERNAL_PERSIST &&
+			session_type == MSM_VIDC_ENCODER) {
+			heap_name = "qcom,secure-non-pixel";
+			flags |= SMEM_SECURE;
+			if (res->slave_side_cp) {
+				size = ALIGN(size, SZ_1M);
+				align = ALIGN(size, SZ_1M);
+			}
+		} else {
+			heap_name = "qcom,system-uncached";
+		}
 	}
 
 	trace_msm_smem_buffer_dma_op_start("alloc", (u32)buffer_type,
