@@ -825,6 +825,8 @@ int read_platform_resources_from_drv_data(
 			"qcom,enc_auto_dynamic_fps");
 	res->no_cvp = find_key_value(platform_data,
 			"qcom,no-cvp");
+	res->boost_margin_disable = find_key_value(platform_data,
+			"qcom,boost_margin_disable");
 
 	res->csc_coeff_data = &platform_data->csc_data;
 
