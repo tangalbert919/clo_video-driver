@@ -2451,6 +2451,10 @@ static struct msm_vidc_common_data kona_common_data[] = {
 		.key = "qcom,avsync-window-size",
 		.value = 40,
 	},
+	{
+		.key = "qcom,boost_margin_disable",
+		.value = 1,
+	},
 };
 
 static struct msm_vidc_common_data qcs3165_common_data[] = {
