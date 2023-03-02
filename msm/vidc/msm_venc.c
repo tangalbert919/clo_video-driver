@@ -3510,9 +3510,11 @@ setprop:
 		sizeof(enable));
 	if (rc)
 		s_vpr_e(inst->sid, "%s: set property failed\n", __func__);
-	else
-		rc = msm_venc_set_bitrate_boost_margin(inst, enable.enable);
-
+	else {
+		if (!inst->core->resources.boost_margin_disable) {
+			rc = msm_venc_set_bitrate_boost_margin(inst, enable.enable);
+		}
+	}
 	return rc;
 }
 
