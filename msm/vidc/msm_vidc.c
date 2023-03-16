@@ -884,6 +884,7 @@ static inline int start_streaming(struct msm_vidc_inst *inst)
 	struct hfi_buffer_size_minimum b;
 	struct v4l2_format *f;
 	int width = 0, height = 0;
+	uint32_t vpu_ver = inst->core->platform_data->vpu_ver;
 
 	s_vpr_h(inst->sid, "%s: inst %pK\n", __func__, inst);
 	hdev = inst->core->device;
@@ -910,12 +911,21 @@ static inline int start_streaming(struct msm_vidc_inst *inst)
 	** UHD and higher then set the operating rate to default value after
 	** setting the session to TURBO mode to allow freq to be set to max.
 	*/
-	if (is_decode_session(inst) && (inst->clk_data.operating_rate == 0)) {
+	/* Tuned conditions for VP9 codec, with 720p and higher res as for few
+	** tcs operating rate got set as 0 and -1 having scaling factors as 0
+	** and -1 respectively. Hence setting TURBO mode for this condition.
+	*/
+	if (is_decode_session(inst) && (inst->clk_data.operating_rate <= 0)) {
 		f = &inst->fmts[INPUT_PORT].v4l2_fmt;
 		width = f->fmt.pix_mp.width;
 		height = f->fmt.pix_mp.height;
 
 		if (NUM_MBS_PER_FRAME(height, width) >= NUM_MBS_UHD) {
+			inst->flags |= VIDC_TURBO;
+		}
+		else if ((vpu_ver == VPU_VERSION_AR50 || vpu_ver == VPU_VERSION_AR50_LITE) &&
+			(get_v4l2_codec(inst) == V4L2_PIX_FMT_VP9) &&
+			(NUM_MBS_PER_FRAME(height, width) >= NUM_MBS_720p)) {
 			inst->flags |= VIDC_TURBO;
 		}
 		inst->clk_data.operating_rate = DEFAULT_FPS << 16;
