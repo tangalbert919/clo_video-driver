@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #include "msm_venc.h"
 #include "msm_vidc_internal.h"
@@ -461,6 +462,16 @@ static struct msm_vidc_ctrl msm_venc_ctrls[] = {
 		.minimum = 0,
 		.maximum = MAX_INTRA_REFRESH_MBS,
 		.default_value = 0,
+		.step = 1,
+		.qmenu = NULL,
+	},
+	{
+		.id = V4L2_CID_MPEG_VIDC_ENABLE_ONLY_BASE_LAYER_IR,
+		.name = "Enable Only Base Layer IR",
+		.type = V4L2_CTRL_TYPE_BOOLEAN,
+		.minimum = V4L2_MPEG_MSM_VIDC_DISABLE,
+		.maximum = V4L2_MPEG_MSM_VIDC_ENABLE,
+		.default_value = V4L2_MPEG_MSM_VIDC_DISABLE,
 		.step = 1,
 		.qmenu = NULL,
 	},
@@ -2028,6 +2039,7 @@ int msm_venc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 	case V4L2_CID_MPEG_VIDC_VIDEO_PRIORITY:
 	case V4L2_CID_MPEG_VIDC_VIDEO_INTRA_REFRESH_RANDOM:
 	case V4L2_CID_MPEG_VIDEO_CYCLIC_INTRA_REFRESH_MB:
+	case V4L2_CID_MPEG_VIDC_ENABLE_ONLY_BASE_LAYER_IR:
 	case V4L2_CID_MPEG_VIDC_VENC_NATIVE_RECORDER:
 	case V4L2_CID_MPEG_VIDC_VENC_RC_TIMESTAMP_DISABLE:
 	case V4L2_CID_MPEG_VIDEO_VBV_DELAY:
@@ -3366,6 +3378,9 @@ int msm_venc_set_intra_refresh_mode(struct msm_vidc_inst *inst)
 	struct v4l2_ctrl *ctrl = NULL;
 	struct hfi_intra_refresh intra_refresh;
 	struct v4l2_format *f;
+	struct hfi_enable enable;
+	struct v4l2_ctrl *layer = NULL;
+	struct v4l2_ctrl *max_layer = NULL;
 
 	if (!inst || !inst->core) {
 		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
@@ -3377,7 +3392,12 @@ int msm_venc_set_intra_refresh_mode(struct msm_vidc_inst *inst)
 		inst->rc_type == V4L2_MPEG_VIDEO_BITRATE_MODE_CBR))
 		return 0;
 
-	/* Firmware supports only random mode */
+	/* Check for base layer only intra refresh in case of multiple layers */
+	layer = get_ctrl(inst, V4L2_CID_MPEG_VIDEO_HEVC_HIER_CODING_LAYER);
+	max_layer = get_ctrl(inst, V4L2_CID_MPEG_VIDC_VIDEO_HEVC_MAX_HIER_CODING_LAYER);
+	ctrl = get_ctrl(inst, V4L2_CID_MPEG_VIDC_ENABLE_ONLY_BASE_LAYER_IR);
+	enable.enable = !!ctrl->val;
+
 	intra_refresh.mode = HFI_INTRA_REFRESH_RANDOM;
 
 	ctrl = get_ctrl(inst, V4L2_CID_MPEG_VIDC_VIDEO_INTRA_REFRESH_RANDOM);
@@ -3396,12 +3416,20 @@ int msm_venc_set_intra_refresh_mode(struct msm_vidc_inst *inst)
 	} else {
 		ctrl = get_ctrl(inst,
 			V4L2_CID_MPEG_VIDEO_CYCLIC_INTRA_REFRESH_MB);
+		intra_refresh.mode = HFI_INTRA_REFRESH_CYCLIC;
 		intra_refresh.mbs = ctrl->val;
 	}
 	if (!intra_refresh.mbs) {
 		intra_refresh.mode = HFI_INTRA_REFRESH_NONE;
 		intra_refresh.mbs = 0;
-	}
+	} else if (enable.enable && layer->val && max_layer->val) {
+		s_vpr_h(inst->sid, "%s: Enable only base layer IR:%d\n",__func__, enable.enable);
+		rc = call_hfi_op(hdev, session_set_property,
+			inst->session, HFI_PROPERTY_PARAM_ENABLE_ONLY_BASE_LAYER_IR,
+			&enable, sizeof(enable));
+		if (rc)
+			s_vpr_e(inst->sid,"%s: set property failed\n", __func__);
+   }
 
 	s_vpr_h(inst->sid, "%s: %d %d\n", __func__,
 			intra_refresh.mode, intra_refresh.mbs);
@@ -3512,75 +3540,8 @@ setprop:
 		sizeof(enable));
 	if (rc)
 		s_vpr_e(inst->sid, "%s: set property failed\n", __func__);
-	else {
-		if (!inst->core->resources.boost_margin_disable) {
-			rc = msm_venc_set_bitrate_boost_margin(inst, enable.enable);
-		}
-	}
 	return rc;
 }
-
-int msm_venc_set_bitrate_boost_margin(struct msm_vidc_inst *inst, u32 enable)
-{
-	int rc = 0;
-	struct hfi_device *hdev;
-	struct v4l2_ctrl *ctrl = NULL;
-	struct hfi_bitrate_boost_margin boost_margin;
-	int minqp, maxqp;
-	uint32_t vpu;
-
-	if (!inst || !inst->core) {
-		d_vpr_e("%s: invalid params %pK\n", __func__, inst);
-		return -EINVAL;
-	}
-	hdev = inst->core->device;
-	vpu = inst->core->platform_data->vpu_ver;
-
-	if (!enable) {
-		boost_margin.margin = 0;
-		goto setprop;
-	}
-
-	ctrl = get_ctrl(inst, V4L2_CID_MPEG_VIDC_VENC_BITRATE_BOOST);
-
-	/*
-	 * For certain SOC, default value should be 0 unless client enabled
-	 */
-	if (!inst->boost_enabled && vpu == VPU_VERSION_AR50_LITE) {
-		ctrl->val = 0;
-		update_ctrl(ctrl, 0, inst->sid);
-	}
-	/* Mapped value to 0, 15, 25 or 50*/
-	if (ctrl->val >= 50)
-		boost_margin.margin = 50;
-	else if (ctrl->val >= 25)
-		boost_margin.margin = (u32)(ctrl->val/25) * 25;
-	else
-		boost_margin.margin = (u32)(ctrl->val/15) * 15;
-
-setprop:
-	s_vpr_h(inst->sid, "%s: %d\n", __func__, boost_margin.margin);
-	rc = call_hfi_op(hdev, session_set_property, inst->session,
-		HFI_PROPERTY_PARAM_VENC_BITRATE_BOOST, &boost_margin,
-		sizeof(boost_margin));
-	if (rc)
-		s_vpr_e(inst->sid, "%s: set property failed\n", __func__);
-
-	/* Boost QP range is only enabled when bitrate boost is enabled
-	 * and boost QP range is set by client
-	 */
-	ctrl = get_ctrl(inst, V4L2_CID_MPEG_VIDC_VENC_QPRANGE_BOOST);
-	if (enable && ctrl->val) {
-		minqp = ctrl->val & 0xFF;
-		maxqp = (ctrl->val >> 8) & 0xFF;
-		inst->boost_qp_enabled = true;
-		inst->boost_min_qp = minqp | (minqp << 8) | (minqp << 16);
-		inst->boost_max_qp = maxqp | (maxqp << 8) | (maxqp << 16);
-	}
-
-	return rc;
-}
-
 
 int msm_venc_set_loop_filter_mode(struct msm_vidc_inst *inst)
 {

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -187,9 +187,9 @@ static struct msm_vidc_codec_capability kona_capabilities[] = {
         {CAP_I_FRAME_QP, ENC, VP8|VP9, 0, 127, 1, 20},
         {CAP_P_FRAME_QP, ENC, VP8|VP9, 0, 127, 1, 40},
         {CAP_B_FRAME_QP, ENC, VP8|VP9, 0, 127, 1, 40},
-        /* 10 slices */
-        {CAP_SLICE_BYTE, ENC, H264|HEVC, 1, 10, 1, 10},
-        {CAP_SLICE_MB, ENC, H264|HEVC, 1, 10, 1, 10},
+        /* 128 slices */
+        {CAP_SLICE_BYTE, ENC, H264|HEVC, 1, 128, 1, 10},
+        {CAP_SLICE_MB, ENC, H264|HEVC, 1, 128, 1, 10},
         {CAP_MAX_VIDEOCORES, DOMAINS_ALL, CODECS_ALL, 0, 1, 1, 1},
 
         /* VP8 specific */
@@ -1366,10 +1366,6 @@ static struct msm_vidc_common_data kona_common_data[] = {
         {
                 .key = "qcom,avsync-window-size",
                 .value = 40,
-        },
-        {
-                .key = "qcom,boost_margin_disable",
-                .value = 1,
         },
 };
 

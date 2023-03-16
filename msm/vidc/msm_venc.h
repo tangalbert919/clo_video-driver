@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 #ifndef _MSM_VENC_H_
 #define _MSM_VENC_H_
@@ -48,6 +49,5 @@ int handle_all_intra_restrictions(struct msm_vidc_inst *inst);
 int check_blur_restrictions(struct msm_vidc_inst *inst);
 int msm_venc_set_frame_quality(struct msm_vidc_inst *inst);
 int msm_venc_set_image_grid(struct msm_vidc_inst *inst);
-int msm_venc_set_bitrate_boost_margin(struct msm_vidc_inst *inst, u32 enable);
 int handle_vpss_restrictions(struct msm_vidc_inst *inst);
 #endif
