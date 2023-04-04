@@ -1214,7 +1214,7 @@ static struct msm_vidc_codec_capability qcs3165_capabilities[] = {
 	{CAP_FRAME_WIDTH, DOMAINS_ALL, CODECS_ALL, 128, 4096, 1, 1920},
 	{CAP_FRAME_HEIGHT, DOMAINS_ALL, CODECS_ALL, 128, 4096, 1, 1080},
 	/* (4096 * 2176) / 256 */
-	{CAP_MBS_PER_FRAME, DOMAINS_ALL, CODECS_ALL, 64, 34816, 1, 138240},
+	{CAP_MBS_PER_FRAME, DOMAINS_ALL, CODECS_ALL, 64, 138240, 1, 138240},
 	/* ((4096 * 2176) / 256) * 960 fps */
 	{CAP_MBS_PER_SECOND, DOMAINS_ALL, CODECS_ALL, 64, 2088960, 1, 7833600},
 	{CAP_FRAMERATE, DOMAINS_ALL, CODECS_ALL, 1, 960, 1, 30},
@@ -2484,7 +2484,7 @@ static struct msm_vidc_common_data qcs3165_common_data[] = {
 	},
 	{
 		.key = "qcom,max-mbpf",
-		.value = 34816,	/* (4096x2176)/256 */
+		.value = 173056,	/* (4096x2176)/256 */
 	},
 	{
 		.key = "qcom,max-hq-mbs-per-frame",
