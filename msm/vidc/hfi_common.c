@@ -52,16 +52,13 @@ static void venus_hfi_pm_handler(struct work_struct *work);
 static DECLARE_DELAYED_WORK(venus_hfi_pm_work, venus_hfi_pm_handler);
 static inline int __resume(struct venus_hfi_device *device, u32 sid);
 static inline int __suspend(struct venus_hfi_device *device);
-static int __enable_regulators(struct venus_hfi_device *device, u32 sid);
-static inline int __prepare_enable_clks(
-		struct venus_hfi_device *device, u32 sid);
 static void __flush_debug_queue(struct venus_hfi_device *device, u8 *packet);
 static int __initialize_packetization(struct venus_hfi_device *device);
 static struct hal_session *__get_session(struct venus_hfi_device *device,
 		u32 sid);
 static bool __is_session_valid(struct venus_hfi_device *device,
 		struct hal_session *session, const char *func);
-static int __set_clocks(struct venus_hfi_device *device, u32 freq, u32 sid);
+int __set_clocks(struct venus_hfi_device *device, u32 freq, u32 sid);
 static int __iface_cmdq_write(struct venus_hfi_device *device,
 					void *pkt, u32 sid);
 static int __load_fw(struct venus_hfi_device *device);
@@ -83,6 +80,7 @@ struct venus_hfi_vpu_ops ar50_lite_ops = {
         .clock_config_on_enable = NULL,
         .reset_ahb2axi_bridge = NULL,
         .power_off = __power_off_ar50_lt,
+	.power_on = NULL,
         .prepare_pc = __prepare_pc_ar50_lt,
         .raise_interrupt = __raise_interrupt_ar50_lt,
         .watchdog = __watchdog_common,
@@ -97,6 +95,7 @@ struct venus_hfi_vpu_ops iris2_ops = {
 	.clock_config_on_enable = NULL,
 	.reset_ahb2axi_bridge = __reset_ahb2axi_bridge_common,
 	.power_off = __power_off_iris2,
+	.power_on = __power_on_iris2,
 	.prepare_pc = __prepare_pc_iris2,
 	.raise_interrupt = __raise_interrupt_iris2,
 	.watchdog = __watchdog_iris2,
@@ -372,7 +371,7 @@ static int venus_hfi_session_resume(void *sess)
 	return rc;
 }
 
-static int __acquire_regulator(struct regulator_info *rinfo,
+int __acquire_regulator(struct regulator_info *rinfo,
 				struct venus_hfi_device *device, u32 sid)
 {
 	int rc = 0;
@@ -870,7 +869,7 @@ int __read_register(struct venus_hfi_device *device, u32 reg, u32 sid)
 	return rc;
 }
 
-static void __set_registers(struct venus_hfi_device *device, u32 sid)
+void __set_registers(struct venus_hfi_device *device, u32 sid)
 {
 	struct reg_set *reg_set;
 	int i;
@@ -918,7 +917,7 @@ err_unknown_device:
 	return rc;
 }
 
-static int __vote_buses(struct venus_hfi_device *device,
+int __vote_buses(struct venus_hfi_device *device,
 		unsigned long bw_ddr, unsigned long bw_llcc, u32 sid)
 {
 	int rc = 0;
@@ -1109,7 +1108,7 @@ exit:
 	return rc;
 }
 
-static int __set_clk_rate(struct venus_hfi_device *device,
+int __set_clk_rate(struct venus_hfi_device *device,
 		struct clock_info *cl, u64 rate, u32 sid)
 {
 	int rc = 0;
@@ -1154,7 +1153,7 @@ static int __set_clk_rate(struct venus_hfi_device *device,
 	return rc;
 }
 
-static int __set_clocks(struct venus_hfi_device *device, u32 freq, u32 sid)
+int __set_clocks(struct venus_hfi_device *device, u32 freq, u32 sid)
 {
 	struct clock_info *cl;
 	int rc = 0;
@@ -1203,7 +1202,7 @@ exit:
 	return rc;
 }
 
-static int __scale_clocks(struct venus_hfi_device *device, u32 sid)
+int __scale_clocks(struct venus_hfi_device *device, u32 sid)
 {
 	int rc = 0;
 	struct allowed_clock_rates_table *allowed_clks_tbl = NULL;
@@ -1699,6 +1698,7 @@ static int __sys_set_power_control(struct venus_hfi_device *device,
 	call_hfi_pkt_op(device, sys_power_control, pkt, enable);
 	if (__iface_cmdq_write(device, pkt, sid))
 		return -ENOTEMPTY;
+	device->hw_power_control = true;
 	return 0;
 }
 
@@ -2539,6 +2539,7 @@ static void venus_hfi_pm_handler(struct work_struct *work)
 		d_vpr_e("Failed to PC for %d times\n",
 				device->skip_pc_count);
 		device->skip_pc_count = 0;
+		device->video_unresponsive = true;
 		__process_fatal_error(device);
 		return;
 	}
@@ -2772,6 +2773,7 @@ static int __response_handler(struct venus_hfi_device *device)
 
 		print_sfr_message(device);
 
+		device->cpu_watchdog = true;
 		d_vpr_e("Received watchdog timeout\n");
 		packets[packet_count++] = info;
 		goto exit;
@@ -3103,6 +3105,8 @@ static int __handle_reset_clk(struct msm_vidc_platform_resources *res,
 		}
 
 		rc = reset_control_assert(rst);
+		if(rc)
+			s_vpr_e(sid, "failed to assert\n");
 		break;
 	case DEASSERT:
 		if (!rst) {
@@ -3110,6 +3114,8 @@ static int __handle_reset_clk(struct msm_vidc_platform_resources *res,
 			goto failed_to_reset;
 		}
 		rc = reset_control_deassert(rst);
+		if(rc)
+			s_vpr_e(sid, "failed to deassert\n");
 		break;
 	default:
 		s_vpr_e(sid, "Invalid reset request\n");
@@ -3167,7 +3173,7 @@ int __reset_ahb2axi_bridge_common(struct venus_hfi_device *device, u32 sid)
 		}
 
 		/* wait for deassert */
-		usleep_range(400, 500);
+		usleep_range(1000, 1100);
 
 		rc = __handle_reset_clk(device->res, i, DEASSERT, sid);
 		if (rc) {
@@ -3179,59 +3185,6 @@ int __reset_ahb2axi_bridge_common(struct venus_hfi_device *device, u32 sid)
 	return 0;
 
 failed_to_reset:
-	return rc;
-}
-
-static inline int __prepare_enable_clks(struct venus_hfi_device *device,
-	u32 sid)
-{
-	struct clock_info *cl = NULL, *cl_fail = NULL;
-	int rc = 0, c = 0;
-
-	if (!device) {
-		s_vpr_e(sid, "%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	venus_hfi_for_each_clock(device, cl) {
-		/*
-		 * For the clocks we control, set the rate prior to preparing
-		 * them.  Since we don't really have a load at this point, scale
-		 * it to the lowest frequency possible
-		 */
-		if (cl->has_scaling)
-			__set_clk_rate(device, cl,
-					clk_round_rate(cl->clk, 0), sid);
-
-		if (__clk_is_enabled(cl->clk))
-			s_vpr_e(sid, "%s: clock %s already enabled\n",
-				__func__, cl->name);
-
-		rc = clk_prepare_enable(cl->clk);
-		if (rc) {
-			s_vpr_e(sid, "Failed to enable clocks\n");
-			cl_fail = cl;
-			goto fail_clk_enable;
-		}
-
-		if (!__clk_is_enabled(cl->clk))
-			s_vpr_e(sid, "%s: clock %s not enabled\n",
-				__func__, cl->name);
-
-		c++;
-		s_vpr_h(sid, "Clock: %s prepared and enabled\n", cl->name);
-	}
-
-	call_venus_op(device, clock_config_on_enable, device, sid);
-	return rc;
-
-fail_clk_enable:
-	venus_hfi_for_each_clock_reverse_continue(device, cl, c) {
-		s_vpr_e(sid, "Clock: %s disable and unprepare\n",
-			cl->name);
-		clk_disable_unprepare(cl->clk);
-	}
-
 	return rc;
 }
 
@@ -3548,43 +3501,6 @@ static int __enable_hw_power_collapse(struct venus_hfi_device *device, u32 sid)
 	return rc;
 }
 
-static int __enable_regulators(struct venus_hfi_device *device, u32 sid)
-{
-	int rc = 0, c = 0;
-	struct regulator_info *rinfo;
-
-	s_vpr_h(sid, "Enabling regulators\n");
-
-	venus_hfi_for_each_regulator(device, rinfo) {
-		if (regulator_is_enabled(rinfo->regulator))
-			s_vpr_e(sid, "%s: regulator %s already enabled\n",
-				__func__, rinfo->name);
-
-		rc = regulator_enable(rinfo->regulator);
-		if (rc) {
-			s_vpr_e(sid, "Failed to enable %s: %d\n",
-					rinfo->name, rc);
-			goto err_reg_enable_failed;
-		}
-
-		if (!regulator_is_enabled(rinfo->regulator))
-			s_vpr_e(sid, "%s: regulator %s not enabled\n",
-				__func__, rinfo->name);
-
-		s_vpr_h(sid, "Enabled regulator %s\n",
-				rinfo->name);
-		c++;
-	}
-
-	return 0;
-
-err_reg_enable_failed:
-	venus_hfi_for_each_regulator_reverse_continue(device, rinfo, c)
-		__disable_regulator(rinfo, device);
-
-	return rc;
-}
-
 int __disable_regulators(struct venus_hfi_device *device)
 {
 	struct regulator_info *rinfo;
@@ -3795,57 +3711,13 @@ static int __venus_power_on(struct venus_hfi_device *device, u32 sid)
 	if (device->power_enabled)
 		return 0;
 
+	rc = call_venus_op(device, power_on, device);
+	if (rc) {
+		d_vpr_e("Failed to power on, err: %d\n", rc);
+		return rc;
+	}
 	device->power_enabled = true;
-	/* Vote for all hardware resources */
-	rc = __vote_buses(device, INT_MAX, INT_MAX, sid);
-	if (rc) {
-		s_vpr_e(sid, "Failed to vote buses, err: %d\n", rc);
-		goto fail_vote_buses;
-	}
 
-	rc = __enable_regulators(device, sid);
-	if (rc) {
-		s_vpr_e(sid, "Failed to enable GDSC, err = %d\n", rc);
-		goto fail_enable_gdsc;
-	}
-
-	rc = call_venus_op(device, reset_ahb2axi_bridge, device, sid);
-	if (rc) {
-		s_vpr_e(sid, "Failed to reset ahb2axi: %d\n", rc);
-		goto fail_enable_clks;
-	}
-
-	rc = __prepare_enable_clks(device, sid);
-	if (rc) {
-		s_vpr_e(sid, "Failed to enable clocks: %d\n", rc);
-		goto fail_enable_clks;
-	}
-
-	rc = __scale_clocks(device, sid);
-	if (rc) {
-		s_vpr_e(sid,
-			"Failed to scale clocks, performance might be affected\n");
-		rc = 0;
-	}
-
-	/*
-	 * Re-program all of the registers that get reset as a result of
-	 * regulator_disable() and _enable()
-	 */
-	__set_registers(device, sid);
-
-	call_venus_op(device, interrupt_init, device, sid);
-	device->intr_status = 0;
-	enable_irq(device->hal_data->irq);
-
-	return rc;
-
-fail_enable_clks:
-	__disable_regulators(device);
-fail_enable_gdsc:
-	__unvote_buses(device, sid);
-fail_vote_buses:
-	device->power_enabled = false;
 	return rc;
 }
 
@@ -3894,6 +3766,7 @@ static inline int __resume(struct venus_hfi_device *device, u32 sid)
 	}
 
 	s_vpr_h(sid, "Resuming from power collapse\n");
+	device->hw_power_control = false;
 	rc = __venus_power_on(device, sid);
 	if (rc) {
 		s_vpr_e(sid, "Failed to power on venus\n");
@@ -4051,6 +3924,9 @@ exit:
 static int __load_fw(struct venus_hfi_device *device)
 {
 	int rc = 0;
+	device->hw_power_control = false;
+	device->cpu_watchdog = false;
+	device->video_unresponsive = false;
 
 	/* Initialize resources */
 	rc = __init_resources(device, device->res);
@@ -4141,6 +4017,8 @@ static void __unload_fw(struct venus_hfi_device *device)
 	device->resources.fw.cookie = 0;
 	__deinit_resources(device);
 
+	device->cpu_watchdog = false;
+	device->video_unresponsive = false;
 	d_vpr_h("Firmware unloaded successfully\n");
 }
 

@@ -239,6 +239,7 @@ struct venus_hfi_vpu_ops {
 		u32 sid);
 	int (*reset_ahb2axi_bridge)(struct venus_hfi_device *device, u32 sid);
 	void (*power_off)(struct venus_hfi_device *device);
+	int (*power_on)(struct venus_hfi_device *device);
 	int (*prepare_pc)(struct venus_hfi_device *device);
 	void (*raise_interrupt)(struct venus_hfi_device *device, u32 sid);
 	bool (*watchdog)(u32 intr_status);
@@ -280,6 +281,9 @@ struct venus_hfi_device {
 	u8 *raw_packet;
 	unsigned int skip_pc_count;
 	struct venus_hfi_vpu_ops *vpu_ops;
+	bool hw_power_control;
+	bool cpu_watchdog;
+	bool video_unresponsive;
 };
 
 void venus_hfi_delete_device(void *device);
@@ -302,12 +306,19 @@ int __disable_regulators(struct venus_hfi_device *device);
 int __unvote_buses(struct venus_hfi_device *device, u32 sid);
 int __reset_ahb2axi_bridge_common(struct venus_hfi_device *device, u32 sid);
 int __prepare_pc(struct venus_hfi_device *device);
+int __acquire_regulator(struct regulator_info *rinfo, struct venus_hfi_device *device, u32 sid);
+int __set_clk_rate(struct venus_hfi_device *device, struct clock_info *cl, u64 rate, u32 sid);
+int __set_clocks(struct venus_hfi_device *device, u32 freq, u32 sid);
+int __scale_clocks(struct venus_hfi_device *device, u32 sid);
+int __vote_buses(struct venus_hfi_device *device, unsigned long bw_ddr, unsigned long bw_llcc, u32 sid);
+void __set_registers(struct venus_hfi_device *device, u32 sid);
 
 /* IRIS2 specific */
 void __interrupt_init_iris2(struct venus_hfi_device *device, u32 sid);
 void __setup_ucregion_memory_map_iris2(struct venus_hfi_device *device,
 		u32 sid);
 void __power_off_iris2(struct venus_hfi_device *device);
+int __power_on_iris2(struct venus_hfi_device *device);
 int __prepare_pc_iris2(struct venus_hfi_device *device);
 void __raise_interrupt_iris2(struct venus_hfi_device *device, u32 sid);
 bool __watchdog_iris2(u32 intr_status);
