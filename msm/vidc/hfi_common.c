@@ -51,7 +51,6 @@ static void venus_hfi_pm_handler(struct work_struct *work);
 static DECLARE_DELAYED_WORK(venus_hfi_pm_work, venus_hfi_pm_handler);
 static inline int __resume(struct venus_hfi_device *device, u32 sid);
 static inline int __suspend(struct venus_hfi_device *device);
-static int __enable_regulators(struct venus_hfi_device *device, u32 sid);
 static inline int __prepare_enable_clks(
 		struct venus_hfi_device *device, u32 sid);
 static void __flush_debug_queue(struct venus_hfi_device *device, u8 *packet);
@@ -96,20 +95,24 @@ static struct venus_hfi_vpu_ops vpu4_ops = {
 	.noc_error_info = __noc_error_info_common,
 	.core_clear_interrupt = __core_clear_interrupt_common,
 	.boot_firmware = __boot_firmware_common,
+	.enable_regulators = __enable_regulators_ar50,
+	.disable_regulators = __disable_regulators_ar50,
 };
 
 static struct venus_hfi_vpu_ops ar50_lite_ops = {
-        .interrupt_init = __interrupt_init_ar50_lt,
-        .setup_ucregion_memmap = __setup_ucregion_memory_map_ar50_lt,
-        .clock_config_on_enable = NULL,
-        .reset_ahb2axi_bridge = NULL,
-        .power_off = __power_off_ar50_lt,
-        .prepare_pc = __prepare_pc_ar50_lt,
-        .raise_interrupt = __raise_interrupt_ar50_lt,
-        .watchdog = __watchdog_common,
-        .noc_error_info = __noc_error_info_common,
-        .core_clear_interrupt = __core_clear_interrupt_ar50_lt,
-        .boot_firmware = __boot_firmware_ar50_lt,
+	.interrupt_init = __interrupt_init_ar50_lt,
+	.setup_ucregion_memmap = __setup_ucregion_memory_map_ar50_lt,
+	.clock_config_on_enable = NULL,
+	.reset_ahb2axi_bridge = NULL,
+	.power_off = __power_off_ar50_lt,
+	.prepare_pc = __prepare_pc_ar50_lt,
+	.raise_interrupt = __raise_interrupt_ar50_lt,
+	.watchdog = __watchdog_common,
+	.noc_error_info = __noc_error_info_common,
+	.core_clear_interrupt = __core_clear_interrupt_ar50_lt,
+	.boot_firmware = __boot_firmware_ar50_lt,
+	.enable_regulators = __enable_regulators_ar50_lt,
+	.disable_regulators = __disable_regulators_ar50_lt,
 };
 
 static struct venus_hfi_vpu_ops iris1_ops = {
@@ -124,6 +127,8 @@ static struct venus_hfi_vpu_ops iris1_ops = {
 	.noc_error_info = __noc_error_info_common,
 	.core_clear_interrupt = __core_clear_interrupt_common,
 	.boot_firmware = __boot_firmware_common,
+	.enable_regulators = __enable_regulators_iris1,
+	.disable_regulators = __disable_regulators_iris1,
 };
 
 static struct venus_hfi_vpu_ops iris2_ops = {
@@ -138,6 +143,8 @@ static struct venus_hfi_vpu_ops iris2_ops = {
 	.noc_error_info = __noc_error_info_iris2,
 	.core_clear_interrupt = __core_clear_interrupt_iris2,
 	.boot_firmware = __boot_firmware_iris2,
+	.enable_regulators = __enable_regulators_iris2,
+	.disable_regulators = __disable_regulators_iris2,
 };
 
 /**
@@ -3923,55 +3930,6 @@ static int __protect_cp_mem(struct venus_hfi_device *device)
 	return rc;
 }
 
-static int __disable_regulator(struct regulator_info *rinfo,
-				struct venus_hfi_device *device)
-{
-	int rc = 0;
-
-	d_vpr_h("Disabling regulator %s\n", rinfo->name);
-
-	/*
-	 * This call is needed. Driver needs to acquire the control back
-	 * from HW in order to disable the regualtor. Else the behavior
-	 * is unknown.
-	 */
-
-	rc = __acquire_regulator(rinfo, device, DEFAULT_SID);
-	if (rc) {
-		/*
-		 * This is somewhat fatal, but nothing we can do
-		 * about it. We can't disable the regulator w/o
-		 * getting it back under s/w control
-		 */
-		d_vpr_e("Failed to acquire control on %s\n",
-			rinfo->name);
-
-		goto disable_regulator_failed;
-	}
-
-	if (!regulator_is_enabled(rinfo->regulator))
-		d_vpr_e("%s: regulator %s already disabled\n",
-			__func__, rinfo->name);
-
-	rc = regulator_disable(rinfo->regulator);
-	if (rc) {
-		d_vpr_e("Failed to disable %s: %d\n",
-			rinfo->name, rc);
-		goto disable_regulator_failed;
-	}
-
-	if (regulator_is_enabled(rinfo->regulator))
-		d_vpr_e("%s: regulator %s not disabled\n",
-			__func__, rinfo->name);
-
-	return 0;
-disable_regulator_failed:
-
-	/* Bring attention to this issue */
-	msm_vidc_res_handle_fatal_hw_error(device->res, true);
-	return rc;
-}
-
 static int __enable_hw_power_collapse(struct venus_hfi_device *device, u32 sid)
 {
 	int rc = 0;
@@ -3983,52 +3941,98 @@ static int __enable_hw_power_collapse(struct venus_hfi_device *device, u32 sid)
 	return rc;
 }
 
-static int __enable_regulators(struct venus_hfi_device *device, u32 sid)
+int __enable_regulator_by_name(struct venus_hfi_device *device,
+		const char *reg_name)
 {
-	int rc = 0, c = 0;
-	struct regulator_info *rinfo;
+	int rc = 0;
+	struct regulator_info *rinfo = NULL;
+	bool found = false;
+	u32 sid = DEFAULT_SID;
 
-	s_vpr_h(sid, "Enabling regulators\n");
-
-	venus_hfi_for_each_regulator(device, rinfo) {
-		if (regulator_is_enabled(rinfo->regulator))
-			s_vpr_e(sid, "%s: regulator %s already enabled\n",
-				__func__, rinfo->name);
-
-		rc = regulator_enable(rinfo->regulator);
-		if (rc) {
-			s_vpr_e(sid, "Failed to enable %s: %d\n",
-					rinfo->name, rc);
-			goto err_reg_enable_failed;
-		}
-
-		if (!regulator_is_enabled(rinfo->regulator))
-			s_vpr_e(sid, "%s: regulator %s not enabled\n",
-				__func__, rinfo->name);
-
-		s_vpr_h(sid, "Enabled regulator %s\n",
-				rinfo->name);
-		c++;
+	if (!device || !reg_name) {
+		s_vpr_h(sid, "%s: invalid params, device %pK, reg_name ptr %pK\n", __func__, device, reg_name);
+		return -EINVAL;
 	}
 
-	return 0;
-
-err_reg_enable_failed:
-	venus_hfi_for_each_regulator_reverse_continue(device, rinfo, c)
-		__disable_regulator(rinfo, device);
+	venus_hfi_for_each_regulator(device, rinfo) {
+		if (!rinfo->regulator) {
+			s_vpr_e(sid, "%s: invalid regulator %s\n",
+				__func__,  rinfo->name ? rinfo->name : "name is null");
+			return -EINVAL;
+		}
+		if (strcmp(rinfo->name, reg_name))
+			continue;
+		found = true;
+		rc = regulator_enable(rinfo->regulator);
+		if (rc) {
+			s_vpr_e(sid, "%s: failed to enable %s, rc = %d\n",
+				__func__, rinfo->name, rc);
+			return rc;
+		}
+		if (!regulator_is_enabled(rinfo->regulator)) {
+			s_vpr_e(sid, "%s: regulator %s not enabled\n",
+				__func__, rinfo->name);
+			regulator_disable(rinfo->regulator);
+			return -EINVAL;
+		}
+		s_vpr_h(sid, "%s: enabled regulator %s\n", __func__, rinfo->name);
+		break;
+	}
+	if (!found) {
+		s_vpr_e(sid, "%s: regulator %s not found\n", __func__, reg_name);
+		return -EINVAL;
+	}
 
 	return rc;
 }
 
-int __disable_regulators(struct venus_hfi_device *device)
+int __disable_regulator_by_name(struct venus_hfi_device *device,
+		const char *reg_name)
 {
-	struct regulator_info *rinfo;
+	int rc = 0;
+	u32 sid = DEFAULT_SID;
+	struct regulator_info *rinfo = NULL;
+	bool found = false;
 
-	d_vpr_h("Disabling regulators\n");
-	venus_hfi_for_each_regulator_reverse(device, rinfo)
-		__disable_regulator(rinfo, device);
+	if (!device || !reg_name) {
+		s_vpr_h(sid, "%s: invalid params, device %pK, reg_name ptr %pK\n", __func__, device, reg_name);
+		return -EINVAL;
+	}
 
-	return 0;
+	venus_hfi_for_each_regulator(device, rinfo) {
+		if (!rinfo->regulator) {
+			s_vpr_h(sid, "%s: invalid regulator %s\n",
+				__func__,  rinfo->name ? rinfo->name : "name is null");
+			return -EINVAL;
+		}
+		if (strcmp(rinfo->name, reg_name))
+			continue;
+		found = true;
+
+		rc = __acquire_regulator(rinfo, device, sid);
+		if (rc) {
+			s_vpr_h(sid, "%s: failed to acquire %s, rc = %d\n",
+				__func__, rinfo->name, rc);
+			/* Bring attention to this issue */
+			WARN_ON(true);
+			return rc;
+		}
+
+		rc = regulator_disable(rinfo->regulator);
+		if (rc) {
+			s_vpr_h(sid, "%s: failed to disable %s, rc = %d\n",
+				__func__, rinfo->name, rc);
+			return rc;
+		}
+		s_vpr_h(sid, "%s: disabled regulator %s\n", __func__, rinfo->name);
+		break;
+	}
+	if (!found) {
+		s_vpr_h(sid, "%s: regulator %s not found\n", __func__, reg_name);
+		return -EINVAL;
+	}
+
+	return rc;
 }
 
 static int __enable_subcaches(struct venus_hfi_device *device, u32 sid)
@@ -4238,7 +4242,7 @@ static int __venus_power_on(struct venus_hfi_device *device, u32 sid)
 		goto fail_vote_buses;
 	}
 
-	rc = __enable_regulators(device, sid);
+	rc = call_venus_op(device, enable_regulators, device);
 	if (rc) {
 		s_vpr_e(sid, "Failed to enable GDSC, err = %d\n", rc);
 		goto fail_enable_gdsc;
@@ -4276,7 +4280,7 @@ static int __venus_power_on(struct venus_hfi_device *device, u32 sid)
 	return rc;
 
 fail_enable_clks:
-	__disable_regulators(device);
+	call_venus_op(device, disable_regulators, device);
 fail_enable_gdsc:
 	__unvote_buses(device, sid);
 fail_vote_buses:
@@ -4297,7 +4301,7 @@ static int __power_off_common(struct venus_hfi_device *device)
 	if (call_venus_op(device, reset_ahb2axi_bridge, device, DEFAULT_SID))
 		d_vpr_e("Failed to reset ahb2axi\n");
 
-	if (__disable_regulators(device))
+	if (call_venus_op(device, disable_regulators, device))
 		d_vpr_e("Failed to disable regulators\n");
 
 	if (__unvote_buses(device, DEFAULT_SID))
