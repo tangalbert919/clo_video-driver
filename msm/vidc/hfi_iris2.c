@@ -248,7 +248,7 @@ skip_aon_mvp_noc:
 	__disable_unprepare_clks(device);
 
 	/* HPG 6.1.2 Step 5 */
-	if (__disable_regulators(device))
+	if (call_venus_op(device, disable_regulators, device))
 		d_vpr_e("%s: Failed to disable regulators\n", __func__);
 
 	if (__unvote_buses(device, sid))
@@ -423,6 +423,52 @@ int __boot_firmware_iris2(struct venus_hfi_device *device, u32 sid)
 	/* Enable interrupt before sending commands to venus */
 	__write_register(device, CPU_CS_H2XSOFTINTEN_IRIS2, 0x1, sid);
 	__write_register(device, CPU_CS_X2RPMh_IRIS2, 0x0, sid);
+
+	return rc;
+}
+
+int __enable_regulators_iris2(struct venus_hfi_device *device)
+{
+	int rc = 0;
+
+	d_vpr_h("Enabling regulators\n");
+
+	rc = __enable_regulator_by_name(device, "iris-ctl");
+	if (rc) {
+		d_vpr_e("Failed to enable regualtor iris-ctl, rc = %d\n", rc);
+		goto fail_regulator;
+	}
+	rc = __enable_regulator_by_name(device, "vcodec");
+	if (rc) {
+		d_vpr_e("Failed to enable regualtor vcodec, rc = %d\n", rc);
+		goto fail_regulator_vcodec;
+	}
+
+	return 0;
+
+fail_regulator_vcodec:
+	__disable_regulator_by_name(device, "iris-ctl");
+fail_regulator:
+	return rc;
+
+}
+
+int __disable_regulators_iris2(struct venus_hfi_device *device)
+{
+	int rc = 0;
+
+	d_vpr_h("Disabling regulators\n");
+
+	rc = __disable_regulator_by_name(device, "vcodec");
+	if (rc) {
+		d_vpr_e("%s: disable regulator vcodec failed\n", __func__);
+		rc = 0;
+	}
+	rc = __disable_regulator_by_name(device, "iris-ctl");
+	if (rc) {
+		d_vpr_e("%s: disable regulator iris-ctl failed\n", __func__);
+		rc = 0;
+	}
 
 	return rc;
 }
