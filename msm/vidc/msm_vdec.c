@@ -907,6 +907,11 @@ int msm_vdec_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 		break;
 	case V4L2_CID_MPEG_VIDC_VIDEO_FRAME_RATE:
 		inst->clk_data.frame_rate = ctrl->val;
+		if (msm_vidc_check_session_supported(inst)) {
+			s_vpr_e(inst->sid,
+				"%s: session not supported\n", __func__);
+			return -ENOTSUPP;
+		}
 		break;
 	case V4L2_CID_MPEG_VIDC_VIDEO_SYNC_FRAME_DECODE:
 		inst->flags &= ~VIDC_THUMBNAIL;
