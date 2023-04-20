@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -1366,10 +1366,6 @@ static struct msm_vidc_common_data kona_common_data[] = {
         {
                 .key = "qcom,avsync-window-size",
                 .value = 40,
-        },
-        {
-                .key = "qcom,boost_margin_disable",
-                .value = 1,
         },
 };
 

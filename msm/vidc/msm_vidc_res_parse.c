@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iommu.h>
@@ -825,8 +826,6 @@ int read_platform_resources_from_drv_data(
 			"qcom,enc_auto_dynamic_fps");
 	res->no_cvp = find_key_value(platform_data,
 			"qcom,no-cvp");
-	res->boost_margin_disable = find_key_value(platform_data,
-			"qcom,boost_margin_disable");
 
 	res->csc_coeff_data = &platform_data->csc_data;
 

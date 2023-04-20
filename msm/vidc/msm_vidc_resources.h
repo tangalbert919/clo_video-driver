@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2013-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __MSM_VIDC_RESOURCES_H__
@@ -210,7 +211,6 @@ struct msm_vidc_platform_resources {
 	uint32_t has_vpp_delay;
 	bool enc_auto_dynamic_fps;
 	bool no_cvp;
-	bool boost_margin_disable;
 };
 
 static inline bool is_iommu_present(struct msm_vidc_platform_resources *res)
