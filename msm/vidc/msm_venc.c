@@ -51,10 +51,10 @@
 static const char *const mpeg_video_rate_control[] = {
 	"VBR",
 	"CBR",
+	"CQ",
 	"CBR VFR",
 	"MBR",
 	"MBR VFR",
-	"CQ",
 	NULL
 };
 
@@ -246,7 +246,7 @@ static struct msm_vidc_ctrl msm_venc_ctrls[] = {
 		.name = "Video Bitrate Control",
 		.type = V4L2_CTRL_TYPE_MENU,
 		.minimum = V4L2_MPEG_VIDEO_BITRATE_MODE_VBR,
-		.maximum = V4L2_MPEG_VIDEO_BITRATE_MODE_CQ,
+		.maximum = V4L2_MPEG_VIDEO_BITRATE_MODE_MBR_VFR,
 		.default_value = V4L2_MPEG_VIDEO_BITRATE_MODE_VBR,
 		.menu_skip_mask = ~(
 		(1 << V4L2_MPEG_VIDEO_BITRATE_MODE_VBR) |
