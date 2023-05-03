@@ -1,3 +1,5 @@
+ifneq ($(TARGET_IS_HEADLESS),true)
+
 # SPDX-License-Identifier: GPL-2.0-only
 ifneq ($(ENABLE_HYP), true)
 TARGET_VIDC_ENABLE := false
@@ -46,3 +48,5 @@ LOCAL_ADDITIONAL_DEPENDENCIES := $(call intermediates-dir-for,DLKM,mmrm-module-s
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 endif
 endif
+
+endif #TARGET_IS_HEADLESS
