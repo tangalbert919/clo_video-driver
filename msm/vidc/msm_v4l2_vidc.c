@@ -487,8 +487,6 @@ static int msm_vidc_probe_vidc_device(struct platform_device *pdev)
 	struct device *dev = NULL;
 	int nr = BASE_DEVICE_NUMBER;
 
-	place_marker("M - DRIVER Video Start");
-
 	if (!vidc_driver) {
 		d_vpr_e("Invalid vidc driver\n");
 		return -EINVAL;
@@ -607,7 +605,11 @@ static int msm_vidc_probe_vidc_device(struct platform_device *pdev)
 		goto err_fail_sub_device_probe;
 	}
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	place_marker("M - DRIVER Video Ready");
+#endif
+	pr_info("boot-kpi: M - DRIVER Video Ready");
+
 	return rc;
 
 err_fail_sub_device_probe:
@@ -807,7 +809,6 @@ static int msm_vidc_pm_suspend(struct device *dev)
 
 static int msm_vidc_pm_resume(struct device *dev)
 {
-	place_marker("vidc resumed");
 	d_vpr_h("%s\n", __func__);
 	return 0;
 }
@@ -828,11 +829,17 @@ static int msm_vidc_pm_freeze(struct device *dev)
 	 * Suspend/Freeze not supported for subdevices (context banks)
 	*/
 	if (of_device_is_compatible(dev->of_node, "qcom,msm-vidc")) {
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		place_marker("vidc hibernation start");
+#endif
+		pr_info("boot-kpi: vidc hibernation start");
 
 		rc = msm_vidc_freeze_core(core);
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		place_marker("vidc hibernation end");
+#endif
+		pr_info("boot-kpi: vidc hibernation end");
 	}
 	d_vpr_h("%s: done\n", __func__);
 
