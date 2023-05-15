@@ -313,40 +313,6 @@ exit:
 	return rc;
 }
 
-static int get_secure_flag_for_buffer_type(
-	u32 session_type, enum hal_buffer buffer_type)
-{
-	switch (buffer_type) {
-	case HAL_BUFFER_INPUT:
-		if (session_type == MSM_VIDC_ENCODER)
-			return MSM_VIDC_SECURE_PIXEL;
-		else
-			return MSM_VIDC_SECURE_BITSTREAM;
-	case HAL_BUFFER_OUTPUT:
-	case HAL_BUFFER_OUTPUT2:
-		if (session_type == MSM_VIDC_ENCODER)
-			return MSM_VIDC_SECURE_BITSTREAM;
-		else
-			return MSM_VIDC_SECURE_PIXEL;
-	case HAL_BUFFER_INTERNAL_SCRATCH:
-		return MSM_VIDC_SECURE_BITSTREAM;
-	case HAL_BUFFER_INTERNAL_SCRATCH_1:
-		return MSM_VIDC_SECURE_NONPIXEL;
-	case HAL_BUFFER_INTERNAL_SCRATCH_2:
-		return MSM_VIDC_SECURE_PIXEL;
-	case HAL_BUFFER_INTERNAL_PERSIST:
-		if (session_type == MSM_VIDC_ENCODER)
-			return MSM_VIDC_SECURE_NONPIXEL;
-		else
-			return MSM_VIDC_SECURE_BITSTREAM;
-	case HAL_BUFFER_INTERNAL_PERSIST_1:
-		return MSM_VIDC_SECURE_NONPIXEL;
-	default:
-		WARN(1, "No matching secure flag for buffer type : %x\n",
-				buffer_type);
-		return -EINVAL;
-	}
-}
 
 static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 	enum hal_buffer buffer_type, int map_kernel,
@@ -356,6 +322,7 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 	dma_addr_t iova = 0;
 	unsigned long buffer_size = 0;
 	int rc = 0;
+	int secure_flag = 0;
 	struct dma_buf *dbuf = NULL;
 	struct dma_heap *heap;
 	char *heap_name = NULL;
@@ -368,58 +335,69 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 	align = ALIGN(align, SZ_4K);
 	size = ALIGN(size, SZ_4K);
 
-/* All dma-heap allocations are cached by default. */
-	if ((flags & SMEM_SECURE) ||
-		(buffer_type == HAL_BUFFER_INTERNAL_PERSIST &&
-		 session_type == MSM_VIDC_ENCODER)) {
-		int secure_flag =
-			get_secure_flag_for_buffer_type(
-				session_type, buffer_type);
-		if (secure_flag < 0) {
-			rc = secure_flag;
-			goto fail_shared_mem_alloc;
-		}
+	/* All dma-heap allocations are cached by default. */
+	if (flags & SMEM_SECURE) {
 
-		if (res->slave_side_cp) {
-			size = ALIGN(size, SZ_1M);
-			align = ALIGN(size, SZ_1M);
-		}
-		flags |= SMEM_SECURE;
-	}
-
-	if ((flags & SMEM_SECURE) ||
-		(buffer_type == HAL_BUFFER_INTERNAL_PERSIST &&
-		 session_type == MSM_VIDC_ENCODER)) {
-		int secure_flag =
-			get_secure_flag_for_buffer_type(
-				session_type, buffer_type);
-		if (secure_flag < 0) {
-			rc = secure_flag;
-			goto fail_shared_mem_alloc;
-		}
-		switch (secure_flag) {
-		case MSM_VIDC_SECURE_PIXEL:
+		switch (buffer_type) {
+		case HAL_BUFFER_INPUT:
+			if (session_type == MSM_VIDC_ENCODER)
+				heap_name = "qcom,secure-pixel";
+			else
+				heap_name = "system-secure";
+			break;
+		case HAL_BUFFER_OUTPUT:
+		case HAL_BUFFER_OUTPUT2:
+			if (session_type == MSM_VIDC_ENCODER)
+				heap_name = "system-secure";
+			else
 			heap_name = "qcom,secure-pixel";
 			break;
-		case MSM_VIDC_SECURE_NONPIXEL:
+		case HAL_BUFFER_INTERNAL_SCRATCH:
+			heap_name = "system-secure";
+			break;
+		case HAL_BUFFER_INTERNAL_SCRATCH_1:
 			heap_name = "qcom,secure-non-pixel";
 			break;
-		case MSM_VIDC_SECURE_BITSTREAM:
-			heap_name = "qcom,system";
+		case HAL_BUFFER_INTERNAL_SCRATCH_2:
+			heap_name = "qcom,secure-pixel";
+			break;
+		case HAL_BUFFER_INTERNAL_PERSIST:
+			if (session_type == MSM_VIDC_ENCODER)
+				heap_name = "qcom,secure-non-pixel";
+			else
+				heap_name = "system-secure";
+			break;
+		case HAL_BUFFER_INTERNAL_PERSIST_1:
+			heap_name = "qcom,secure-non-pixel";
 			break;
 		default:
-			d_vpr_e("invalid secure flag : %#x\n", secure_flag);
-			return -EINVAL;
+			d_vpr_e("invalid buffer type : %#x\n", buffer_type);
+			secure_flag = -EINVAL;
+			break;
 		}
-		flags |= SMEM_SECURE;
-	}
-	else {
+
+		if (secure_flag < 0) {
+			rc = secure_flag;
+			goto fail_shared_mem_alloc;
+		}
+	} else {
 		heap_name = "qcom,system-uncached";
 	}
 
-	trace_msm_smem_buffer_dma_op_start("alloc", (u32)buffer_type,
+	if ((flags & SMEM_SECURE) && (res->slave_side_cp)) {
+		size = ALIGN(size, SZ_1M);
+		align = ALIGN(size, SZ_1M);
+	}
+	trace_msm_smem_buffer_dma_op_start("ALLOC", (u32)buffer_type,
 		size, align, flags, map_kernel);
+
 	heap = dma_heap_find(heap_name);
+	if (IS_ERR_OR_NULL(heap)) {
+		d_vpr_e("%s: dma heap %s find failed\n", __func__, heap_name);
+		rc = -ENOMEM;
+		goto fail_shared_mem_alloc;
+	}
+
 	dbuf = dma_heap_buffer_alloc(heap, size, 0, 0);
 	if (IS_ERR_OR_NULL(dbuf)) {
 		s_vpr_e(sid, "Failed to allocate shared memory = %zx, %s\n",

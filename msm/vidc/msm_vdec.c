@@ -541,17 +541,17 @@ struct msm_vidc_format_constraint dec_pix_format_constraints[] = {
 		.fourcc = V4L2_PIX_FMT_NV12,
 		.num_planes = 2,
 		.y_max_stride = 8192,
-		.y_buffer_alignment = 512,
+		.y_buffer_alignment = 128,
 		.uv_max_stride = 8192,
-		.uv_buffer_alignment = 256,
+		.uv_buffer_alignment = 32,
 	},
 	{
 		.fourcc = V4L2_PIX_FMT_NV21,
 		.num_planes = 2,
 		.y_max_stride = 8192,
-		.y_buffer_alignment = 512,
+		.y_buffer_alignment = 128,
 		.uv_max_stride = 8192,
-		.uv_buffer_alignment = 256,
+		.uv_buffer_alignment = 32,
 	},
 };
 
@@ -1258,9 +1258,10 @@ int msm_vdec_set_secure_mode(struct msm_vidc_inst *inst)
 	if (ctrl->val) {
 		if (!(codec == V4L2_PIX_FMT_HEVC ||
 			codec == V4L2_PIX_FMT_H264 ||
-			codec == V4L2_PIX_FMT_VP9)) {
+			codec == V4L2_PIX_FMT_VP9 ||
+			codec == V4L2_PIX_FMT_MPEG2)) {
 			s_vpr_e(inst->sid,
-				"%s: Secure allowed for HEVC/H264/VP9\n",
+				"%s: Secure allowed for HEVC/H264/VP9/MPEG2\n",
 				__func__);
 			return -EINVAL;
 		}
