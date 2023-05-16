@@ -4,7 +4,10 @@
  */
 
 #include <linux/iommu.h>
+#include <linux/version.h>
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0))
 #include <linux/dma-iommu.h>
+#endif
 #include <linux/of.h>
 #include <linux/sort.h>
 #include <linux/of_reserved_mem.h>
@@ -868,8 +871,12 @@ int read_platform_resources_from_dt(
 	res->register_base = kres ? kres->start : -1;
 	res->register_size = kres ? (kres->end + 1 - kres->start) : -1;
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0))
+	res->irq = platform_get_irq(pdev, 0);
+#else
 	kres = platform_get_resource(pdev, IORESOURCE_IRQ, 0);
 	res->irq = kres ? kres->start : -1;
+#endif
 
 	rc = msm_vidc_load_fw_name(res);
 	if (rc)

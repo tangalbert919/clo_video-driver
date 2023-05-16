@@ -105,18 +105,17 @@ int __disable_regulators_iris1(struct venus_hfi_device *device)
 
 	rc = __disable_regulator_by_name(device, "cvp");
 	if (rc) {
-		d_vpr_e("%s: disable regulator vcodec failed\n", __func__);
+		d_vpr_e("%s: disable regulator vcodec failed, rc = %d\n", __func__, rc);
 		rc = 0;
 	}
 	rc = __disable_regulator_by_name(device, "vcodec");
 	if (rc) {
-		d_vpr_e("%s: disable regulator vcodec failed\n", __func__);
+		d_vpr_e("%s: disable regulator vcodec failed, rc = %d\n", __func__, rc);
 		rc = 0;
 	}
 	rc = __disable_regulator_by_name(device, "iris-ctl");
 	if (rc) {
-		d_vpr_e("%s: disable regulator iris-ctl failed\n", __func__);
-		rc = 0;
+		d_vpr_e("%s: disable regulator iris-ctl failed rc = %d\n", __func__, rc);
 	}
 
 	return rc;

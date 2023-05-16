@@ -318,13 +318,12 @@ int __disable_regulators_ar50_lt(struct venus_hfi_device *device)
 
 	rc = __disable_regulator_by_name(device, "venus-core0");
 	if (rc) {
-		d_vpr_e("%s: disable regulator venus-core0 failed\n", __func__);
+		d_vpr_e("%s: disable regulator venus-core0 failed, rc = %d\n", __func__, rc);
 		rc = 0;
 	}
 	rc = __disable_regulator_by_name(device, "venus");
 	if (rc) {
-		d_vpr_e("%s: disable regulator venus failed\n", __func__);
-		rc = 0;
+		d_vpr_e("%s: disable regulator venus failed, rc = %d\n", __func__, rc);
 	}
 
 	return rc;

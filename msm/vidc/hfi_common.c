@@ -3950,14 +3950,14 @@ int __enable_regulator_by_name(struct venus_hfi_device *device,
 	u32 sid = DEFAULT_SID;
 
 	if (!device || !reg_name) {
-		s_vpr_h(sid, "%s: invalid params\n", __func__);
+		s_vpr_h(sid, "%s: invalid params, device %pK, reg_name ptr %pK\n", __func__, device, reg_name);
 		return -EINVAL;
 	}
 
 	venus_hfi_for_each_regulator(device, rinfo) {
 		if (!rinfo->regulator) {
 			s_vpr_e(sid, "%s: invalid regulator %s\n",
-				__func__, rinfo->name);
+				__func__,  rinfo->name ? rinfo->name : "name is null");
 			return -EINVAL;
 		}
 		if (strcmp(rinfo->name, reg_name))
@@ -3995,14 +3995,14 @@ int __disable_regulator_by_name(struct venus_hfi_device *device,
 	bool found = false;
 
 	if (!device || !reg_name) {
-		s_vpr_h(sid, "%s: invalid params\n", __func__);
+		s_vpr_h(sid, "%s: invalid params, device %pK, reg_name ptr %pK\n", __func__, device, reg_name);
 		return -EINVAL;
 	}
 
 	venus_hfi_for_each_regulator(device, rinfo) {
 		if (!rinfo->regulator) {
 			s_vpr_h(sid, "%s: invalid regulator %s\n",
-				__func__, rinfo->name);
+				__func__,  rinfo->name ? rinfo->name : "name is null");
 			return -EINVAL;
 		}
 		if (strcmp(rinfo->name, reg_name))
