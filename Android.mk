@@ -1,7 +1,7 @@
 ifneq ($(TARGET_IS_HEADLESS),true)
 
 # SPDX-License-Identifier: GPL-2.0-only
-ifneq ($(ENABLE_HYP), true)
+ifneq ($(ENABLE_HYP), false)
 TARGET_VIDC_ENABLE := false
 ifeq ($(TARGET_KERNEL_DLKM_DISABLE), true)
 	ifeq ($(TARGET_KERNEL_DLKM_VIDEO_OVERRIDE), true)
