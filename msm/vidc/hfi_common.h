@@ -252,6 +252,8 @@ struct venus_hfi_vpu_ops {
 	int (*noc_error_info)(struct venus_hfi_device *device);
 	int (*core_clear_interrupt)(struct venus_hfi_device *device);
 	int (*boot_firmware)(struct venus_hfi_device *device, u32 sid);
+	int (*enable_regulators)(struct venus_hfi_device *device);
+	int (*disable_regulators)(struct venus_hfi_device *device);
 };
 
 struct venus_hfi_device {
@@ -305,13 +307,19 @@ void __write_register_masked(struct venus_hfi_device *device,
 		u32 reg, u32 value, u32 mask, u32 sid);
 int __read_register(struct venus_hfi_device *device, u32 reg, u32 sid);
 void __disable_unprepare_clks(struct venus_hfi_device *device);
-int __disable_regulators(struct venus_hfi_device *device);
 int __unvote_buses(struct venus_hfi_device *device, u32 sid);
 int __reset_ahb2axi_bridge_common(struct venus_hfi_device *device, u32 sid);
 int __prepare_pc(struct venus_hfi_device *device);
+int __enable_regulator_by_name(struct venus_hfi_device *device,
+		const char *reg_name);
+int __disable_regulator_by_name(struct venus_hfi_device *device,
+		const char *reg_name);
 
 /* AR50 specific */
 int __interrupt_init_ar50(struct venus_hfi_device *device, u32 sid);
+int __enable_regulators_ar50(struct venus_hfi_device *device);
+int __disable_regulators_ar50(struct venus_hfi_device *device);
+
 /* IRIS1 specific */
 int __interrupt_init_iris1(struct venus_hfi_device *device, u32 sid);
 void __setup_dsp_uc_memmap_iris1(struct venus_hfi_device *device);
@@ -319,6 +327,8 @@ int __clock_config_on_enable_iris1(struct venus_hfi_device *device,
 		u32 sid);
 int __setup_ucregion_memory_map_iris1(struct venus_hfi_device *device,
 		u32 sid);
+int __enable_regulators_iris1(struct venus_hfi_device *device);
+int __disable_regulators_iris1(struct venus_hfi_device *device);
 /* IRIS2 specific */
 int __interrupt_init_iris2(struct venus_hfi_device *device, u32 sid);
 int __setup_ucregion_memory_map_iris2(struct venus_hfi_device *device,
@@ -330,6 +340,8 @@ bool __watchdog_iris2(u32 intr_status);
 int __noc_error_info_iris2(struct venus_hfi_device *device);
 int __core_clear_interrupt_iris2(struct venus_hfi_device *device);
 int __boot_firmware_iris2(struct venus_hfi_device *device, u32 sid);
+int __enable_regulators_iris2(struct venus_hfi_device *device);
+int __disable_regulators_iris2(struct venus_hfi_device *device);
 
 /* AR50_LITE specific */
 int __interrupt_init_ar50_lt(struct venus_hfi_device *device, u32 sid);
@@ -339,5 +351,7 @@ int __prepare_pc_ar50_lt(struct venus_hfi_device *device);
 int __raise_interrupt_ar50_lt(struct venus_hfi_device *device, u32 sid);
 int __core_clear_interrupt_ar50_lt(struct venus_hfi_device *device);
 int __boot_firmware_ar50_lt(struct venus_hfi_device *device, u32 sid);
+int __enable_regulators_ar50_lt(struct venus_hfi_device *device);
+int __disable_regulators_ar50_lt(struct venus_hfi_device *device);
 
 #endif
