@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
- * Copyright (c) 2022. Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2023. Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/iopoll.h>
@@ -94,8 +94,6 @@
 
 #define WRAPPER_DEBUG_BRIDGE_LPI_CONTROL_IRIS2	(WRAPPER_BASE_OFFS_IRIS2 + 0x54)
 #define WRAPPER_DEBUG_BRIDGE_LPI_STATUS_IRIS2	(WRAPPER_BASE_OFFS_IRIS2 + 0x58)
-#define WRAPPER_IRIS_CPU_NOC_LPI_CONTROL	(WRAPPER_BASE_OFFS_IRIS2 + 0x5C)
-#define WRAPPER_IRIS_CPU_NOC_LPI_STATUS		(WRAPPER_BASE_OFFS_IRIS2 + 0x60)
 #define WRAPPER_CORE_POWER_STATUS		(WRAPPER_BASE_OFFS_IRIS2 + 0x80)
 #define WRAPPER_CORE_CLOCK_CONFIG_IRIS2		(WRAPPER_BASE_OFFS_IRIS2 + 0x88)
 /*
@@ -552,14 +550,13 @@ static int __power_off_iris2_controller(struct venus_hfi_device *device)
 	if (rc)
 		d_vpr_h("%s: AON_WRAPPER_MVP_NOC_LPI_CONTROL failed\n", __func__);
 
-	/* Set Iris CPU NoC to Low power */
-	__write_register_masked(device, WRAPPER_IRIS_CPU_NOC_LPI_CONTROL,
-			0x1, BIT(0), sid);
+	/* Set Debug bridge Low power */
+	 __write_register(device, WRAPPER_DEBUG_BRIDGE_LPI_CONTROL_IRIS2, 0x7, sid);
 
-	rc = __read_register_with_poll_timeout(device, WRAPPER_IRIS_CPU_NOC_LPI_STATUS,
-			0x1, 0x1, 200, 2000);
+	rc = __read_register_with_poll_timeout(device, WRAPPER_DEBUG_BRIDGE_LPI_STATUS_IRIS2,
+			0x7, 0x7, 200, 2000);
 	if (rc)
-		d_vpr_h("%s: WRAPPER_IRIS_CPU_NOC_LPI_CONTROL failed\n", __func__);
+		d_vpr_h("%s: debug bridge low power failed\n", __func__);
 
 	/* Debug bridge LPI release */
 	__write_register(device, WRAPPER_DEBUG_BRIDGE_LPI_CONTROL_IRIS2, 0x0, sid);
@@ -569,19 +566,17 @@ static int __power_off_iris2_controller(struct venus_hfi_device *device)
 	if (rc)
 		d_vpr_h("%s: debug bridge release failed\n", __func__);
 
-	/* Reset MVP QNS4PDXFIFO */
-	 __write_register(device, WRAPPER_TZ_CTL_AXI_CLOCK_CONFIG, 0x3, sid);
-
-	 __write_register(device, WRAPPER_TZ_QNS4PDXFIFO_RESET, 0x1, sid);
-
-	 __write_register(device, WRAPPER_TZ_QNS4PDXFIFO_RESET, 0x0, sid);
-
-	 __write_register(device, WRAPPER_TZ_CTL_AXI_CLOCK_CONFIG, 0x0, sid);
-
 	/* Turn off MVP MVS0C core clock */
 	rc = __disable_unprepare_clock_iris2(device, "core_clk");
 	if (rc) {
 		d_vpr_e("%s: disable unprepare core_clk failed\n", __func__);
+		rc = 0;
+	}
+
+	/* Disable GCC_VIDEO_AXI0_CLK clock */
+	rc = __disable_unprepare_clock_iris2(device, "gcc_video_axi0");
+	if (rc) {
+		d_vpr_e("%s: disable unprepare gcc_video_axi0 failed\n", __func__);
 		rc = 0;
 	}
 
