@@ -1817,6 +1817,18 @@ int msm_venc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 		case MSM_VIDC_RGB_PRIMARY_21:
 			mdisp_sei->nDisplayPrimariesY[1] = val;
 			break;
+		case MSM_VIDC_RGB_PRIMARY_10:
+			mdisp_sei->nDisplayPrimariesX[0] = val;
+			break;
+		case MSM_VIDC_RGB_PRIMARY_11:
+			mdisp_sei->nDisplayPrimariesY[0] = val;
+			break;
+		case MSM_VIDC_RGB_PRIMARY_20:
+			mdisp_sei->nDisplayPrimariesX[1] = val;
+			break;
+		case MSM_VIDC_RGB_PRIMARY_21:
+			mdisp_sei->nDisplayPrimariesY[1] = val;
+			break;
 		case MSM_VIDC_WHITEPOINT_X:
 			mdisp_sei->nWhitePointX = val;
 			break;
