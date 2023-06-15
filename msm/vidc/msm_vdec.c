@@ -498,6 +498,11 @@ struct msm_vidc_format_desc vdec_output_formats[] = {
 		.description = "UBWC Y/CbCr 4:2:0 10bit",
 		.fourcc = V4L2_PIX_FMT_NV12_TP10_UBWC,
 	},
+	{
+		.name = "YCbCr Semiplanar 4:2:0 512 aligned",
+		.description = "Y/CbCr 4:2:0 512 aligned",
+		.fourcc = V4L2_PIX_FMT_NV12_512,
+	},
 };
 
 struct msm_vidc_format_desc vdec_input_formats[] = {
@@ -589,7 +594,8 @@ int msm_vdec_update_stream_output_mode(struct msm_vidc_inst *inst)
 	format = f->fmt.pix_mp.pixelformat;
 	stream_output_mode = HAL_VIDEO_DECODER_PRIMARY;
 	if ((format == V4L2_PIX_FMT_SDE_Y_CBCR_H2V2_P010_VENUS) ||
-		(format == V4L2_PIX_FMT_NV12)) {
+		(format == V4L2_PIX_FMT_NV12) ||
+		(format == V4L2_PIX_FMT_NV12_512)) {
 		stream_output_mode = HAL_VIDEO_DECODER_SECONDARY;
 	}
 
