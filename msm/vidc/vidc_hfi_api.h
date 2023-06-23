@@ -303,6 +303,12 @@ enum hal_core_id {
 	VIDC_CORE_ID_UNUSED = 0x10000000,
 };
 
+enum hal_work_mode {
+	VIDC_WORK_MODE_1 = 1,
+	VIDC_WORK_MODE_2 = 2,
+	VIDC_WORK_MODE_UNUSED = 0x10000000,
+};
+
 enum vidc_resource_id {
 	VIDC_RESOURCE_NONE,
 	VIDC_RESOURCE_SYSCACHE,

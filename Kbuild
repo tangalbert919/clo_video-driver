@@ -29,5 +29,6 @@ msm-vidc-objs += msm/vidc/msm_v4l2_vidc.o \
                   msm/vidc/vidc_hfi.o \
                   msm/vidc/msm_vidc_clocks.o \
                   msm/vidc/msm_vidc_bus_ar50lite.o\
+                  msm/vidc/msm_vidc_bus_ar50.o \
                   msm/vidc/msm_vidc_bus_iris2.o \
                   msm/vidc/msm_vidc_buffer_calculations.o
