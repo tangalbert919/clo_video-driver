@@ -1,7 +1,6 @@
-ifneq ($(TARGET_IS_HEADLESS),true)
-
 # SPDX-License-Identifier: GPL-2.0-only
-ifneq ($(ENABLE_HYP), false)
+ifneq ($(TARGET_USES_QMAA_OVERRIDE_VIDEO),true)
+ifneq ($(ENABLE_HYP), true)
 TARGET_VIDC_ENABLE := false
 ifeq ($(TARGET_KERNEL_DLKM_DISABLE), true)
 	ifeq ($(TARGET_KERNEL_DLKM_VIDEO_OVERRIDE), true)
@@ -48,5 +47,4 @@ LOCAL_ADDITIONAL_DEPENDENCIES := $(call intermediates-dir-for,DLKM,mmrm-module-s
 include $(DLKM_DIR)/Build_external_kernelmodule.mk
 endif
 endif
-
-endif #TARGET_IS_HEADLESS
+endif #TARGET_USES_QMAA_OVERRIDE_VIDEO
