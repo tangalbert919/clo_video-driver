@@ -551,6 +551,14 @@ struct msm_vidc_format_constraint dec_pix_format_constraints[] = {
 		.uv_buffer_alignment = 32,
 	},
 	{
+		.fourcc = V4L2_PIX_FMT_NV12_512,
+		.num_planes = 2,
+		.y_max_stride = 8192,
+		.y_buffer_alignment = 512,
+		.uv_max_stride = 8192,
+		.uv_buffer_alignment = 256,
+	},
+	{
 		.fourcc = V4L2_PIX_FMT_NV21,
 		.num_planes = 2,
 		.y_max_stride = 8192,
