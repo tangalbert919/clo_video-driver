@@ -12,6 +12,16 @@
 #include "msm_vidc_debug.h"
 #include "msm_vidc_resources.h"
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+#include <soc/qcom/secure_buffer.h>
+#endif
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+#define SECURE_BITSTREAM_HEAP_NAME "qcom,display"
+#else
+#define SECURE_BITSTREAM_HEAP_NAME "system-secure"
+#endif
+
 static int msm_dma_get_device_address(struct dma_buf *dbuf, unsigned long align,
 	dma_addr_t *iova, unsigned long *buffer_size,
 	unsigned long flags, enum hal_buffer buffer_type,
@@ -307,6 +317,11 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 	char *heap_name = NULL;
 	int secure_flag = 0;
 	struct dma_buf *dbuf = NULL;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+	struct mem_buf_lend_kernel_arg lend_arg;
+	int vmids[1] = {0};
+	int perms[1] = {0};
+#endif
 
 	if (!res) {
 		s_vpr_e(sid, "%s: NULL res\n", __func__);
@@ -325,17 +340,17 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 			if (session_type == MSM_VIDC_ENCODER)
 				heap_name = "qcom,secure-pixel";
 			else
-				heap_name = "system-secure";
+				heap_name = SECURE_BITSTREAM_HEAP_NAME;
 			break;
 		case HAL_BUFFER_OUTPUT:
 		case HAL_BUFFER_OUTPUT2:
 			if (session_type == MSM_VIDC_ENCODER)
-				heap_name = "system-secure";
+				heap_name = SECURE_BITSTREAM_HEAP_NAME;
 			else
 				heap_name = "qcom,secure-pixel";
 			break;
 		case HAL_BUFFER_INTERNAL_SCRATCH:
-			heap_name = "system-secure";
+				heap_name = SECURE_BITSTREAM_HEAP_NAME;
 			break;
 		case HAL_BUFFER_INTERNAL_SCRATCH_1:
 			heap_name = "qcom,secure-non-pixel";
@@ -347,7 +362,7 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 			if (session_type == MSM_VIDC_ENCODER)
 				heap_name = "qcom,secure-non-pixel";
 			else
-				heap_name = "system-secure";
+				heap_name = SECURE_BITSTREAM_HEAP_NAME;
 			break;
 		case HAL_BUFFER_INTERNAL_PERSIST_1:
 			heap_name = "qcom,secure-non-pixel";
@@ -394,6 +409,25 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 		rc = -ENOMEM;
 		goto fail_shared_mem_alloc;
 	}
+
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
+	if ((flags & SMEM_SECURE) && (!strncmp(heap_name, "qcom,display", 12)))
+	{
+		vmids[0] = VMID_CP_BITSTREAM;
+		perms[0] = PERM_READ | PERM_WRITE;
+
+		lend_arg.nr_acl_entries = ARRAY_SIZE(vmids);
+		lend_arg.vmids = vmids;
+		lend_arg.perms = perms;
+		rc = mem_buf_lend(dbuf, &lend_arg);
+		if (rc) {
+			s_vpr_e(sid ,"%s: dbuf %pK LEND failed, rc %d heap %s\n",
+				__func__, dbuf, rc, heap_name);
+			goto fail_device_address;
+		}
+	}
+#endif
+
 	trace_msm_smem_buffer_dma_op_end("ALLOC", (u32)buffer_type,
 		size, align, flags, map_kernel);
 
