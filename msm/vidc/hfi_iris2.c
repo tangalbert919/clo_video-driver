@@ -191,56 +191,6 @@ void __setup_ucregion_memory_map_iris2(struct venus_hfi_device *device, u32 sid)
 		sid);
 }
 
-static int __disable_regulator_iris2(struct venus_hfi_device *device,
-		const char *reg_name)
-{
-	int rc = 0;
-	u32 sid = DEFAULT_SID;
-	struct regulator_info *rinfo;
-	bool found;
-
-	if (!device || !reg_name) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	found = false;
-	venus_hfi_for_each_regulator(device, rinfo) {
-		if (!rinfo->regulator) {
-			d_vpr_e("%s: invalid regulator %s\n",
-				__func__, rinfo->name);
-			return -EINVAL;
-		}
-		if (strcmp(rinfo->name, reg_name))
-			continue;
-		found = true;
-
-		rc = __acquire_regulator(rinfo, device, sid);
-		if (rc) {
-			d_vpr_e("%s: failed to acquire %s, rc = %d\n",
-				__func__, rinfo->name, rc);
-			/* Bring attention to this issue */
-			WARN_ON(true);
-			return rc;
-		}
-
-		rc = regulator_disable(rinfo->regulator);
-		if (rc) {
-			d_vpr_e("%s: failed to disable %s, rc = %d\n",
-				__func__, rinfo->name, rc);
-			return rc;
-		}
-		d_vpr_h("%s: disabled regulator %s\n", __func__, rinfo->name);
-		break;
-	}
-	if (!found) {
-		d_vpr_e("%s: regulator %s not found\n", __func__, reg_name);
-		return -EINVAL;
-	}
-
-	return rc;
-}
-
 static int __disable_unprepare_clock_iris2(struct venus_hfi_device *device,
                 const char *clk_name)
 {
@@ -275,52 +225,6 @@ static int __disable_unprepare_clock_iris2(struct venus_hfi_device *device,
         }
 
         return rc;
-}
-
-static int __enable_regulator_iris2(struct venus_hfi_device *device,
-		const char *reg_name)
-{
-	int rc = 0;
-	struct regulator_info *rinfo;
-	bool found;
-
-	if (!device || !reg_name) {
-		d_vpr_e("%s: invalid params\n", __func__);
-		return -EINVAL;
-	}
-
-	found = false;
-	venus_hfi_for_each_regulator(device, rinfo) {
-		if (!rinfo->regulator) {
-			d_vpr_e("%s: invalid regulator %s\n",
-				__func__, rinfo->name);
-			return -EINVAL;
-		}
-		if (strcmp(rinfo->name, reg_name))
-			continue;
-		found = true;
-
-		rc = regulator_enable(rinfo->regulator);
-		if (rc) {
-			d_vpr_e("%s: failed to enable %s, rc = %d\n",
-				__func__, rinfo->name, rc);
-			return rc;
-		}
-		if (!regulator_is_enabled(rinfo->regulator)) {
-			d_vpr_e("%s: regulator %s not enabled\n",
-				__func__, rinfo->name);
-			regulator_disable(rinfo->regulator);
-			return -EINVAL;
-		}
-		d_vpr_h("%s: enabled regulator %s\n", __func__, rinfo->name);
-		break;
-	}
-	if (!found) {
-		d_vpr_e("%s: regulator %s not found\n", __func__, reg_name);
-		return -EINVAL;
-	}
-
-	return rc;
 }
 
 static int __prepare_enable_clock_iris2(struct venus_hfi_device *device,
@@ -516,7 +420,7 @@ static int __power_off_iris2_hardware(struct venus_hfi_device *device)
 
 disable_power:
 	/* power down process */
-	rc = __disable_regulator_iris2(device, "vcodec");
+	rc = __disable_regulator_by_name(device, "vcodec");
 	if (rc) {
 		d_vpr_e("%s: disable regulator vcodec failed\n", __func__);
 		rc = 0;
@@ -581,7 +485,7 @@ static int __power_off_iris2_controller(struct venus_hfi_device *device)
 	}
 
 	/* power down process */
-	rc = __disable_regulator_iris2(device, "iris-ctl");
+	rc = __disable_regulator_by_name(device, "iris-ctl");
 	if (rc) {
 		d_vpr_e("%s: disable regulator iris-ctl failed\n", __func__);
 		rc = 0;
@@ -627,7 +531,7 @@ static int __power_on_iris2_hardware(struct venus_hfi_device *device)
 {
 	int rc = 0;
 
-	rc = __enable_regulator_iris2(device, "vcodec");
+	rc = __enable_regulator_by_name(device, "vcodec");
 	if (rc)
 		goto fail_regulator;
 
@@ -638,7 +542,7 @@ static int __power_on_iris2_hardware(struct venus_hfi_device *device)
 	return 0;
 
 fail_clk_controller:
-	__disable_regulator_iris2(device, "vcodec");
+	__disable_regulator_by_name(device, "vcodec");
 fail_regulator:
 	return rc;
 }
@@ -648,7 +552,7 @@ static int __power_on_iris2_controller(struct venus_hfi_device *device)
 	int rc = 0;
 	u32 sid = DEFAULT_SID;
 
-	rc = __enable_regulator_iris2(device, "iris-ctl");
+	rc = __enable_regulator_by_name(device, "iris-ctl");
 	if (rc)
 		goto fail_regulator;
 
@@ -670,7 +574,7 @@ fail_clk_controller:
 	__disable_unprepare_clock_iris2(device, "gcc_video_axi0");
 fail_clk_axi:
 fail_reset_ahb2axi:
-	__disable_regulator_iris2(device, "iris-ctl");
+	__disable_regulator_by_name(device, "iris-ctl");
 fail_regulator:
 	return rc;
 }

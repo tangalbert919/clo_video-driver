@@ -99,6 +99,8 @@
 #define VCODEC_COREX_VIDEO_NOC_ERR_ERRLOG3_LOW_OFFS	0x0538
 #define VCODEC_COREX_VIDEO_NOC_ERR_ERRLOG3_HIGH_OFFS	0x053C
 
+static inline int __prepare_enable_clks(struct venus_hfi_device *device, u32 sid);
+
 static void setup_dsp_uc_memmap_ar50(struct venus_hfi_device *device)
 {
         /* initialize DSP QTBL & UCREGION with CPU queues */
@@ -115,7 +117,6 @@ void __interrupt_init_ar50(struct venus_hfi_device *device, u32 sid)
 			WRAPPER_INTR_MASK_A2HVCODEC_BMSK, sid);
 }
 
-#ifdef __PRE_NICOBAR_VIDEO
 int __enable_regulators_ar50(struct venus_hfi_device *device)
 {
 	int rc = 0;
@@ -159,7 +160,6 @@ int __disable_regulators_ar50(struct venus_hfi_device *device)
 
 	return rc;
 }
-#endif
 
 void __setup_ucregion_memory_map_ar50(struct venus_hfi_device *device, u32 sid)
 {
@@ -334,11 +334,149 @@ bool __watchdog_ar50(u32 intr_status)
 	if (intr_status & VIDC_WRAPPER_INTR_STATUS_A2HWD_BMSK_AR50)
 		rc = true;
 
+        return rc;
+}
+
+static inline int __prepare_enable_clks(struct venus_hfi_device *device,
+	u32 sid)
+{
+	struct clock_info *cl = NULL, *cl_fail = NULL;
+	int rc = 0, c = 0;
+
+	if (!device) {
+		s_vpr_e(sid, "%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	venus_hfi_for_each_clock(device, cl) {
+		/*
+		 * For the clocks we control, set the rate prior to preparing
+		 * them.  Since we don't really have a load at this point, scale
+		 * it to the lowest frequency possible
+		 */
+		if (cl->has_scaling)
+			__set_clk_rate(device, cl,
+					clk_round_rate(cl->clk, 0), sid);
+
+		if (__clk_is_enabled(cl->clk))
+			s_vpr_e(sid, "%s: clock %s already enabled\n",
+				__func__, cl->name);
+
+		rc = clk_prepare_enable(cl->clk);
+		if (rc) {
+			s_vpr_e(sid, "Failed to enable clocks\n");
+			cl_fail = cl;
+			goto fail_clk_enable;
+		}
+
+		if (!__clk_is_enabled(cl->clk))
+			s_vpr_e(sid, "%s: clock %s not enabled\n",
+				__func__, cl->name);
+
+		c++;
+		s_vpr_h(sid, "Clock: %s prepared and enabled\n", cl->name);
+	}
+
+	call_venus_op(device, clock_config_on_enable, device, sid);
+	return rc;
+
+fail_clk_enable:
+	venus_hfi_for_each_clock_reverse_continue(device, cl, c) {
+		s_vpr_e(sid, "Clock: %s disable and unprepare\n",
+			cl->name);
+		clk_disable_unprepare(cl->clk);
+	}
+
 	return rc;
 }
 
 void __raise_interrupt_ar50(struct venus_hfi_device *device, u32 sid)
 {
 	__write_register(device, VIDC_CPU_IC_SOFTINT_AR50,
-		VIDC_CPU_IC_SOFTINT_H2A_SHFT_AR50, sid);
+		1 << VIDC_CPU_IC_SOFTINT_H2A_SHFT_AR50, sid);
+
+}
+
+int __power_on_ar50(struct venus_hfi_device *device)
+{
+		int rc = 0;
+		u32 sid = DEFAULT_SID;
+
+		if (device->power_enabled)
+			return 0;
+
+		device->power_enabled = true;
+		/* Vote for all hardware resources */
+		rc = __vote_buses(device, INT_MAX, INT_MAX, sid);
+		if (rc) {
+			d_vpr_e("Failed to vote buses, err: %d\n", rc);
+			goto fail_vote_buses;
+		}
+
+		rc = __enable_regulators_ar50(device);
+		if (rc) {
+			d_vpr_e("Failed to enable GDSC, err = %d\n", rc);
+			goto fail_enable_gdsc;
+		}
+
+		rc = __reset_ahb2axi_bridge_ar50(device, sid);
+		if (rc) {
+			d_vpr_e("Failed to enable ahb2axi: %d\n", rc);
+			goto fail_enable_clks;
+		}
+
+		rc = __prepare_enable_clks(device, sid);
+		if (rc) {
+			d_vpr_e("Failed to enable clocks: %d\n", rc);
+			goto fail_enable_clks;
+		}
+
+		rc = __scale_clocks(device, sid);
+		if (rc) {
+			d_vpr_l(
+					"Failed to scale clocks, performance might be affected\n");
+			rc = 0;
+		}
+
+		/*
+		 * Re-program all of the registers that get reset as a result of
+		 * regulator_disable() and _enable()
+		 */
+		__set_registers(device, sid);
+
+		call_venus_op(device, interrupt_init, device, sid);
+		device->intr_status = 0;
+		enable_irq(device->hal_data->irq);
+
+		return rc;
+
+	fail_enable_clks:
+		__disable_regulators_ar50(device);
+	fail_enable_gdsc:
+		__unvote_buses(device, sid);
+	fail_vote_buses:
+		device->power_enabled = false;
+		return rc;
+
+}
+
+void __power_off_ar50(struct venus_hfi_device *device)
+{
+	u32 sid = DEFAULT_SID;
+
+	if (!device->power_enabled)
+		return;
+
+	if (!(device->intr_status & VIDC_WRAPPER_INTR_STATUS_A2HWD_BMSK_AR50))
+		disable_irq_nosync(device->hal_data->irq);
+	device->intr_status = 0;
+
+	__disable_unprepare_clks(device);
+
+	if (__disable_regulators_ar50(device))
+		d_vpr_l("Failed to disable regulators\n");
+
+	if (__unvote_buses(device, sid))
+		d_vpr_l("Failed to unvote for buses\n");
+	device->power_enabled = false;
 }

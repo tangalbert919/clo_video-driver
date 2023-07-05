@@ -315,6 +315,8 @@ int __set_clocks(struct venus_hfi_device *device, u32 freq, u32 sid);
 int __scale_clocks(struct venus_hfi_device *device, u32 sid);
 int __vote_buses(struct venus_hfi_device *device, unsigned long bw_ddr, unsigned long bw_llcc, u32 sid);
 void __set_registers(struct venus_hfi_device *device, u32 sid);
+int __enable_regulator_by_name(struct venus_hfi_device *device,const char *reg_name);
+int __disable_regulator_by_name(struct venus_hfi_device *device,const char *reg_name);
 
 /* IRIS2 specific */
 void __interrupt_init_iris2(struct venus_hfi_device *device, u32 sid);
@@ -350,5 +352,7 @@ void __core_clear_interrupt_ar50(struct venus_hfi_device *device);
 int __boot_firmware_ar50(struct venus_hfi_device *device, u32 sid);
 bool __watchdog_ar50(u32 intr_status);
 void __raise_interrupt_ar50(struct venus_hfi_device *device, u32 sid);
+int __power_on_ar50(struct venus_hfi_device *device);
+void __power_off_ar50(struct venus_hfi_device *device);
 
 #endif
