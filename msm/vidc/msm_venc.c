@@ -1800,22 +1800,22 @@ int msm_venc_s_ctrl(struct msm_vidc_inst *inst, struct v4l2_ctrl *ctrl)
 				info_type, val, ctrl->val);
 		switch (info_type) {
 		case MSM_VIDC_RGB_PRIMARY_00:
-			mdisp_sei->nDisplayPrimariesX[0] = val;
-			break;
-		case MSM_VIDC_RGB_PRIMARY_01:
-			mdisp_sei->nDisplayPrimariesY[0] = val;
-			break;
-		case MSM_VIDC_RGB_PRIMARY_10:
-			mdisp_sei->nDisplayPrimariesX[1] = val;
-			break;
-		case MSM_VIDC_RGB_PRIMARY_11:
-			mdisp_sei->nDisplayPrimariesY[1] = val;
-			break;
-		case MSM_VIDC_RGB_PRIMARY_20:
 			mdisp_sei->nDisplayPrimariesX[2] = val;
 			break;
-		case MSM_VIDC_RGB_PRIMARY_21:
+		case MSM_VIDC_RGB_PRIMARY_01:
 			mdisp_sei->nDisplayPrimariesY[2] = val;
+			break;
+		case MSM_VIDC_RGB_PRIMARY_10:
+			mdisp_sei->nDisplayPrimariesX[0] = val;
+			break;
+		case MSM_VIDC_RGB_PRIMARY_11:
+			mdisp_sei->nDisplayPrimariesY[0] = val;
+			break;
+		case MSM_VIDC_RGB_PRIMARY_20:
+			mdisp_sei->nDisplayPrimariesX[1] = val;
+			break;
+		case MSM_VIDC_RGB_PRIMARY_21:
+			mdisp_sei->nDisplayPrimariesY[1] = val;
 			break;
 		case MSM_VIDC_WHITEPOINT_X:
 			mdisp_sei->nWhitePointX = val;
@@ -5077,6 +5077,7 @@ int handle_vpss_restrictions(struct msm_vidc_inst *inst)
 int msm_venc_set_properties(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
+	uint32_t vpu = inst->core->platform_data->vpu_ver;
 
 	rc = msm_venc_update_entropy_mode(inst);
 	if (rc)
@@ -5209,9 +5210,13 @@ int msm_venc_set_properties(struct msm_vidc_inst *inst)
 	rc = msm_venc_set_rotation(inst);
 	if (rc)
 		goto exit;
-	rc = msm_venc_set_chroma_qp_offset(inst);
-	if (rc)
-		goto exit;
+	if((vpu != VPU_VERSION_AR50) &&
+		(vpu != VPU_VERSION_AR50_LITE) &&
+		(vpu != VPU_VERSION_IRIS1)) {
+		rc = msm_venc_set_chroma_qp_offset(inst);
+		if (rc)
+			goto exit;
+	}
 	rc = msm_venc_set_blur_resolution(inst);
 	if (rc)
 		goto exit;
