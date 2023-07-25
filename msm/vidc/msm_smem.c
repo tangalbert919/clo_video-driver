@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/dma-buf.h>
@@ -574,8 +575,13 @@ int msm_smem_cache_operations(struct dma_buf *dbuf,
 				offset, size);
 		break;
 	case SMEM_CACHE_INVALIDATE:
+		#if (KERNEL_VERSION(6, 1, 0) <= LINUX_VERSION_CODE)
+		rc = dma_buf_begin_cpu_access_partial(dbuf, DMA_FROM_DEVICE,
+				offset, size);
+		#else
 		rc = dma_buf_begin_cpu_access_partial(dbuf, DMA_TO_DEVICE,
 				offset, size);
+		#endif
 		if (rc)
 			break;
 		rc = dma_buf_end_cpu_access_partial(dbuf, DMA_FROM_DEVICE,
