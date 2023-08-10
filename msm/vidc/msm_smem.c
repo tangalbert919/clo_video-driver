@@ -16,11 +16,7 @@
 #include <soc/qcom/secure_buffer.h>
 #endif
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
-#define SECURE_BITSTREAM_HEAP_NAME "qcom,display"
-#else
 #define SECURE_BITSTREAM_HEAP_NAME "system-secure"
-#endif
 
 static int msm_dma_get_device_address(struct dma_buf *dbuf, unsigned long align,
 	dma_addr_t *iova, unsigned long *buffer_size,
@@ -411,7 +407,7 @@ static int alloc_dma_mem(size_t size, u32 align, u32 flags,
 	}
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0))
-	if ((flags & SMEM_SECURE) && (!strncmp(heap_name, "qcom,display", 12)))
+	if ((flags & SMEM_SECURE) && (!strncmp(heap_name, "system-secure", 13)))
 	{
 		vmids[0] = VMID_CP_BITSTREAM;
 		perms[0] = PERM_READ | PERM_WRITE;
