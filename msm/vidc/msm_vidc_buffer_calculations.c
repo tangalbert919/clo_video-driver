@@ -1010,27 +1010,34 @@ u32 msm_vidc_calculate_enc_output_frame_size(struct msm_vidc_inst *inst)
 	mbs_per_frame = NUM_MBS_PER_FRAME(width, height);
 	frame_size = (width * height * 3);
 
-	if (inst->rc_type == V4L2_MPEG_VIDEO_BITRATE_MODE_CQ ||
-		is_grid_session(inst) || is_image_session(inst))
-		goto calc_done;
-
-	if (mbs_per_frame <= NUM_MBS_360P)
-		(void)frame_size; /* Default frame_size = YUVsize * 2 */
-	else if (mbs_per_frame <= NUM_MBS_4k)
-		frame_size = frame_size >> 2;
+	if (inst->core->platform_data->vpu_ver == VPU_VERSION_AR50)
+	{
+		frame_size = frame_size >>1;
+	}
 	else
-		frame_size = frame_size >> 3;
+	{
+		if (inst->rc_type == V4L2_MPEG_VIDEO_BITRATE_MODE_CQ ||
+			is_grid_session(inst) || is_image_session(inst))
+			goto calc_done;
 
-	if (inst->rc_type == RATE_CONTROL_OFF)
-		frame_size = frame_size << 1;
+		if (mbs_per_frame <= NUM_MBS_360P)
+			(void)frame_size; /* Default frame_size = YUVsize * 2 */
+		else if (mbs_per_frame <= NUM_MBS_4k)
+			frame_size = frame_size >> 2;
+		else
+			frame_size = frame_size >> 3;
 
-	if (inst->rc_type == RATE_CONTROL_LOSSLESS)
-		frame_size = (width * height * 9) >> 2;
+		if (inst->rc_type == RATE_CONTROL_OFF)
+			frame_size = frame_size << 1;
 
-	/* multiply by 10/8 (1.25) to get size for 10 bit case */
-	if (inst->core->platform_data->vpu_ver != VPU_VERSION_AR50_LITE &&
-		f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEVC) {
-		frame_size = frame_size + (frame_size >> 2);
+		if (inst->rc_type == RATE_CONTROL_LOSSLESS)
+			frame_size = (width * height * 9) >> 2;
+
+		/* multiply by 10/8 (1.25) to get size for 10 bit case */
+		if (inst->core->platform_data->vpu_ver != VPU_VERSION_AR50_LITE &&
+			f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEVC) {
+			frame_size = frame_size + (frame_size >> 2);
+		}
 	}
 
 calc_done:
