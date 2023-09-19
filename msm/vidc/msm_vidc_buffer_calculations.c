@@ -266,6 +266,7 @@
 #define SYSTEM_LAL_TILE10 192
 #define NUM_MBS_360P (((480 + 15) >> 4) * ((360 + 15) >> 4))
 #define NUM_MBS_720P (((1280 + 15) >> 4) * ((720 + 15) >> 4))
+#define NUM_MBS_1080P (((1920 + 15) >> 4) * ((1088 + 15) >> 4))
 #define NUM_MBS_4k (((4096 + 15) >> 4) * ((2304 + 15) >> 4))
 #define MB_SIZE_IN_PIXEL (16 * 16)
 #define HDR10PLUS_PAYLOAD_SIZE 1024
@@ -889,18 +890,24 @@ u32 msm_vidc_calculate_dec_input_frame_size(struct msm_vidc_inst *inst, u32 buff
 
 	/*
 	 * Decoder input size calculation:
+	 * For >1080p cases we expect width/height to be set always.
 	 * If clip is 8k buffer size is calculated for 8k : 8k mbs/4
-	 * For 8k cases we expect width/height to be set always.
-	 * In all other cases size is calculated for 4k:
-	 * 4k mbs for VP8/VP9 and 4k/2 for remaining codecs
+	 * In all other cases size is calculated as minimum 1080p:
+	 * 1080p mbs for VP8/VP9 and 1080p/2 for remaining codecs
 	 */
 	f = &inst->fmts[INPUT_PORT].v4l2_fmt;
 	num_mbs = msm_vidc_get_mbs_per_frame(inst);
 	if (num_mbs > NUM_MBS_4k) {
 		div_factor = 4;
 		base_res_mbs = inst->capability.cap[CAP_MBS_PER_FRAME].max;
-	} else {
+	} else if (num_mbs > NUM_MBS_1080P) {
 		base_res_mbs = NUM_MBS_4k;
+		if (f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_VP9)
+			div_factor = 1;
+		else
+			div_factor = 2;
+	} else {
+		base_res_mbs = NUM_MBS_1080P;
 		if (f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_VP9)
 			div_factor = 1;
 		else
@@ -1003,27 +1010,34 @@ u32 msm_vidc_calculate_enc_output_frame_size(struct msm_vidc_inst *inst)
 	mbs_per_frame = NUM_MBS_PER_FRAME(width, height);
 	frame_size = (width * height * 3);
 
-	if (inst->rc_type == V4L2_MPEG_VIDEO_BITRATE_MODE_CQ ||
-		is_grid_session(inst) || is_image_session(inst))
-		goto calc_done;
-
-	if (mbs_per_frame <= NUM_MBS_360P)
-		(void)frame_size; /* Default frame_size = YUVsize * 2 */
-	else if (mbs_per_frame <= NUM_MBS_4k)
-		frame_size = frame_size >> 2;
+	if (inst->core->platform_data->vpu_ver == VPU_VERSION_AR50)
+	{
+		frame_size = frame_size >>1;
+	}
 	else
-		frame_size = frame_size >> 3;
+	{
+		if (inst->rc_type == V4L2_MPEG_VIDEO_BITRATE_MODE_CQ ||
+			is_grid_session(inst) || is_image_session(inst))
+			goto calc_done;
 
-	if (inst->rc_type == RATE_CONTROL_OFF)
-		frame_size = frame_size << 1;
+		if (mbs_per_frame <= NUM_MBS_360P)
+			(void)frame_size; /* Default frame_size = YUVsize * 2 */
+		else if (mbs_per_frame <= NUM_MBS_4k)
+			frame_size = frame_size >> 2;
+		else
+			frame_size = frame_size >> 3;
 
-	if (inst->rc_type == RATE_CONTROL_LOSSLESS)
-		frame_size = (width * height * 9) >> 2;
+		if (inst->rc_type == RATE_CONTROL_OFF)
+			frame_size = frame_size << 1;
 
-	/* multiply by 10/8 (1.25) to get size for 10 bit case */
-	if (inst->core->platform_data->vpu_ver != VPU_VERSION_AR50_LITE &&
-		f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEVC) {
-		frame_size = frame_size + (frame_size >> 2);
+		if (inst->rc_type == RATE_CONTROL_LOSSLESS)
+			frame_size = (width * height * 9) >> 2;
+
+		/* multiply by 10/8 (1.25) to get size for 10 bit case */
+		if (inst->core->platform_data->vpu_ver != VPU_VERSION_AR50_LITE &&
+			f->fmt.pix_mp.pixelformat == V4L2_PIX_FMT_HEVC) {
+			frame_size = frame_size + (frame_size >> 2);
+		}
 	}
 
 calc_done:

@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2012-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __HFI_COMMON_H__
@@ -302,6 +303,8 @@ void __write_register_masked(struct venus_hfi_device *device,
 		u32 reg, u32 value, u32 mask, u32 sid);
 int __read_register(struct venus_hfi_device *device, u32 reg, u32 sid);
 void __disable_unprepare_clks(struct venus_hfi_device *device);
+int __handle_reset_clk(struct msm_vidc_platform_resources *res, int reset_index, enum reset_state state, u32 sid);
+int __iface_cmdq_write(struct venus_hfi_device *device, void *pkt, u32 sid);
 int __disable_regulators(struct venus_hfi_device *device);
 int __unvote_buses(struct venus_hfi_device *device, u32 sid);
 int __reset_ahb2axi_bridge_common(struct venus_hfi_device *device, u32 sid);
@@ -312,6 +315,8 @@ int __set_clocks(struct venus_hfi_device *device, u32 freq, u32 sid);
 int __scale_clocks(struct venus_hfi_device *device, u32 sid);
 int __vote_buses(struct venus_hfi_device *device, unsigned long bw_ddr, unsigned long bw_llcc, u32 sid);
 void __set_registers(struct venus_hfi_device *device, u32 sid);
+int __enable_regulator_by_name(struct venus_hfi_device *device,const char *reg_name);
+int __disable_regulator_by_name(struct venus_hfi_device *device,const char *reg_name);
 
 /* IRIS2 specific */
 void __interrupt_init_iris2(struct venus_hfi_device *device, u32 sid);
@@ -334,5 +339,20 @@ int __prepare_pc_ar50_lt(struct venus_hfi_device *device);
 void __raise_interrupt_ar50_lt(struct venus_hfi_device *device, u32 sid);
 void __core_clear_interrupt_ar50_lt(struct venus_hfi_device *device);
 int __boot_firmware_ar50_lt(struct venus_hfi_device *device, u32 sid);
+
+/* AR50 specific */
+void __interrupt_init_ar50(struct venus_hfi_device *device, u32 sid);
+int __enable_regulators_ar50(struct venus_hfi_device *device);
+int __disable_regulators_ar50(struct venus_hfi_device *device);
+void __setup_ucregion_memory_map_ar50(struct venus_hfi_device *device, u32 sid);
+int __reset_ahb2axi_bridge_ar50(struct venus_hfi_device *device, u32 sid);
+int __prepare_pc_ar50(struct venus_hfi_device *device);
+void __noc_error_info_ar50(struct venus_hfi_device *device);
+void __core_clear_interrupt_ar50(struct venus_hfi_device *device);
+int __boot_firmware_ar50(struct venus_hfi_device *device, u32 sid);
+bool __watchdog_ar50(u32 intr_status);
+void __raise_interrupt_ar50(struct venus_hfi_device *device, u32 sid);
+int __power_on_ar50(struct venus_hfi_device *device);
+void __power_off_ar50(struct venus_hfi_device *device);
 
 #endif

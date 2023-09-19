@@ -1,6 +1,7 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2019-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #ifndef __H_MSM_VIDC_BUS_DEFS_H__
@@ -219,6 +220,8 @@ struct msm_vidc_bus_data {
 };
 
 int calc_bw_ar50lt(struct vidc_bus_vote_data *vidc_data);
+
+int calc_bw_ar50(struct vidc_bus_vote_data *vidc_data);
 
 int calc_bw_iris1(struct vidc_bus_vote_data *vidc_data);
 
