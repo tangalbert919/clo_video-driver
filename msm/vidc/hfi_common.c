@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ *
  */
 
 #include <linux/of_address.h>
@@ -59,8 +61,6 @@ static struct hal_session *__get_session(struct venus_hfi_device *device,
 static bool __is_session_valid(struct venus_hfi_device *device,
 		struct hal_session *session, const char *func);
 int __set_clocks(struct venus_hfi_device *device, u32 freq, u32 sid);
-static int __iface_cmdq_write(struct venus_hfi_device *device,
-					void *pkt, u32 sid);
 static int __load_fw(struct venus_hfi_device *device);
 static void __unload_fw(struct venus_hfi_device *device);
 static int __tzbsp_set_video_state(enum tzbsp_video_state state, u32 sid);
@@ -80,13 +80,28 @@ struct venus_hfi_vpu_ops ar50_lite_ops = {
         .clock_config_on_enable = NULL,
         .reset_ahb2axi_bridge = NULL,
         .power_off = __power_off_ar50_lt,
-	.power_on = NULL,
+        .power_on = NULL,
         .prepare_pc = __prepare_pc_ar50_lt,
         .raise_interrupt = __raise_interrupt_ar50_lt,
         .watchdog = __watchdog_common,
         .noc_error_info = __noc_error_info_common,
         .core_clear_interrupt = __core_clear_interrupt_ar50_lt,
         .boot_firmware = __boot_firmware_ar50_lt,
+};
+
+struct venus_hfi_vpu_ops ar50_ops = {
+        .interrupt_init = __interrupt_init_ar50,
+        .setup_ucregion_memmap = __setup_ucregion_memory_map_ar50,
+        .clock_config_on_enable = NULL,
+        .reset_ahb2axi_bridge = __reset_ahb2axi_bridge_ar50,
+        .power_off = __power_off_ar50,
+        .power_on = __power_on_ar50,
+        .prepare_pc = __prepare_pc_ar50,
+        .raise_interrupt = __raise_interrupt_ar50,
+        .watchdog = __watchdog_ar50,
+        .noc_error_info = __noc_error_info_ar50,
+        .core_clear_interrupt = __core_clear_interrupt_ar50,
+        .boot_firmware = __boot_firmware_ar50,
 };
 
 struct venus_hfi_vpu_ops iris2_ops = {
@@ -1280,7 +1295,7 @@ err_q_null:
 	return result;
 }
 
-static int __iface_cmdq_write(struct venus_hfi_device *device,
+int __iface_cmdq_write(struct venus_hfi_device *device,
 	void *pkt, u32 sid)
 {
 	bool needs_interrupt = false;
@@ -3072,7 +3087,7 @@ err_clk_get:
 	return rc;
 }
 
-static int __handle_reset_clk(struct msm_vidc_platform_resources *res,
+int __handle_reset_clk(struct msm_vidc_platform_resources *res,
 			int reset_index, enum reset_state state, u32 sid)
 {
 	int rc = 0;
@@ -3440,6 +3455,104 @@ static int __protect_cp_mem(struct venus_hfi_device *device)
 		memprot.cp_nonpixel_start, memprot.cp_nonpixel_size);
 	return rc;
 }
+
+int __enable_regulator_by_name(struct venus_hfi_device *device,
+		const char *reg_name)
+{
+	int rc = 0;
+	struct regulator_info *rinfo;
+	bool found;
+
+	if (!device || !reg_name) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	found = false;
+	venus_hfi_for_each_regulator(device, rinfo) {
+		if (!rinfo->regulator) {
+			d_vpr_e("%s: invalid regulator %s\n",
+				__func__, rinfo->name);
+			return -EINVAL;
+		}
+		if (strcmp(rinfo->name, reg_name))
+			continue;
+		found = true;
+
+		rc = regulator_enable(rinfo->regulator);
+		if (rc) {
+			d_vpr_e("%s: failed to enable %s, rc = %d\n",
+				__func__, rinfo->name, rc);
+			return rc;
+		}
+		if (!regulator_is_enabled(rinfo->regulator)) {
+			d_vpr_e("%s: regulator %s not enabled\n",
+				__func__, rinfo->name);
+			regulator_disable(rinfo->regulator);
+			return -EINVAL;
+		}
+		d_vpr_h("%s: enabled regulator %s\n", __func__, rinfo->name);
+		break;
+	}
+	if (!found) {
+		d_vpr_e("%s: regulator %s not found\n", __func__, reg_name);
+		return -EINVAL;
+	}
+
+	return rc;
+}
+
+
+int __disable_regulator_by_name(struct venus_hfi_device *device,
+		const char *reg_name)
+{
+	int rc = 0;
+	u32 sid = DEFAULT_SID;
+	struct regulator_info *rinfo;
+	bool found;
+
+	if (!device || !reg_name) {
+		d_vpr_e("%s: invalid params\n", __func__);
+		return -EINVAL;
+	}
+
+	found = false;
+	venus_hfi_for_each_regulator(device, rinfo) {
+		if (!rinfo->regulator) {
+			d_vpr_e("%s: invalid regulator %s\n",
+				__func__, rinfo->name);
+			return -EINVAL;
+		}
+		if (strcmp(rinfo->name, reg_name))
+			continue;
+		found = true;
+
+		rc = __acquire_regulator(rinfo, device, sid);
+		if (rc) {
+			d_vpr_e("%s: failed to acquire %s, rc = %d\n",
+				__func__, rinfo->name, rc);
+			/* Bring attention to this issue */
+			WARN_ON(true);
+			return rc;
+		}
+
+		rc = regulator_disable(rinfo->regulator);
+		if (rc) {
+			d_vpr_e("%s: failed to disable %s, rc = %d\n",
+				__func__, rinfo->name, rc);
+			return rc;
+		}
+		d_vpr_h("%s: disabled regulator %s\n", __func__, rinfo->name);
+		break;
+	}
+	if (!found) {
+		d_vpr_e("%s: regulator %s not found\n", __func__, reg_name);
+		return -EINVAL;
+	}
+
+	return rc;
+}
+
 
 static int __disable_regulator(struct regulator_info *rinfo,
 				struct venus_hfi_device *device)
@@ -4186,6 +4299,8 @@ void __init_venus_ops(struct venus_hfi_device *device)
 {
 	if (device->res->vpu_ver == VPU_VERSION_AR50_LITE)
 		device->vpu_ops = &ar50_lite_ops;
+	else if(device->res->vpu_ver == VPU_VERSION_AR50)
+		device->vpu_ops = &ar50_ops;
 	else
 		device->vpu_ops = &iris2_ops;
 }

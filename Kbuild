@@ -23,11 +23,13 @@ msm-vidc-objs += msm/vidc/msm_v4l2_vidc.o \
                   msm/vidc/msm_vidc_res_parse.o \
                   msm/vidc/hfi_common.o \
                   msm/vidc/hfi_ar50_lt.o \
+                  msm/vidc/hfi_ar50.o \
                   msm/vidc/hfi_iris2.o \
                   msm/vidc/hfi_response_handler.o \
                   msm/vidc/hfi_packetization.o \
                   msm/vidc/vidc_hfi.o \
                   msm/vidc/msm_vidc_clocks.o \
                   msm/vidc/msm_vidc_bus_ar50lite.o\
+                  msm/vidc/msm_vidc_bus_ar50.o \
                   msm/vidc/msm_vidc_bus_iris2.o \
                   msm/vidc/msm_vidc_buffer_calculations.o

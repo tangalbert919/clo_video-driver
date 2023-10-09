@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2017-2020, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include "msm_vidc_common.h"
@@ -20,7 +21,10 @@
 #define MSM_VIDC_SESSION_INACTIVE_THRESHOLD_MS 1000
 
 static int msm_vidc_decide_work_mode_ar50_lt(struct msm_vidc_inst *inst);
+static int msm_vidc_decide_work_mode_ar50(struct msm_vidc_inst *inst);
 static unsigned long msm_vidc_calc_freq_ar50_lt(struct msm_vidc_inst *inst,
+	u32 filled_len);
+static unsigned long msm_vidc_calc_freq_ar50(struct msm_vidc_inst *inst,
 	u32 filled_len);
 static unsigned long msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst,
 	u32 filled_len);
@@ -32,6 +36,14 @@ struct msm_vidc_core_ops core_ops_ar50_lt = {
 	.decide_core_and_power_mode =
 		msm_vidc_decide_core_and_power_mode_ar50lt,
 	.calc_bw = calc_bw_ar50lt,
+};
+
+struct msm_vidc_core_ops core_ops_ar50 = {
+	.calc_freq = msm_vidc_calc_freq_ar50,
+	.decide_work_route = NULL,
+	.decide_work_mode = msm_vidc_decide_work_mode_ar50,
+	.decide_core_and_power_mode = NULL,
+	.calc_bw = calc_bw_ar50,
 };
 
 struct msm_vidc_core_ops core_ops_iris2 = {
@@ -669,6 +681,82 @@ static unsigned long msm_vidc_calc_freq_ar50_lt(struct msm_vidc_inst *inst,
 	return (unsigned long) freq;
 }
 
+static unsigned long msm_vidc_calc_freq_ar50(struct msm_vidc_inst *inst,
+	u32 filled_len)
+{
+	unsigned long freq = 0;
+	unsigned long vpp_cycles = 0, vsp_cycles = 0;
+	unsigned long fw_cycles = 0, fw_vpp_cycles = 0;
+	u32 vpp_cycles_per_mb;
+	u32 mbs_per_second;
+	struct msm_vidc_core *core = NULL;
+	int i = 0;
+	struct allowed_clock_rates_table *allowed_clks_tbl = NULL;
+	u64 rate = 0, fps;
+	struct clock_data *dcvs = NULL;
+
+	core = inst->core;
+	dcvs = &inst->clk_data;
+
+	mbs_per_second = msm_comm_get_inst_load_per_core(inst,
+		LOAD_POWER);
+
+	fps = msm_vidc_get_fps(inst);
+
+	/*
+	 * Calculate vpp, vsp cycles separately for encoder and decoder.
+	 * Even though, most part is common now, in future it may change
+	 * between them.
+	 */
+
+	fw_cycles = fps * inst->core->resources.fw_cycles;
+	fw_vpp_cycles = fps * inst->core->resources.fw_vpp_cycles;
+
+	if (inst->session_type == MSM_VIDC_ENCODER) {
+		vpp_cycles_per_mb = inst->flags & VIDC_LOW_POWER ?
+			inst->clk_data.entry->low_power_cycles :
+			inst->clk_data.entry->vpp_cycles;
+
+		vpp_cycles = mbs_per_second * vpp_cycles_per_mb;
+		/* 21 / 20 is minimum overhead factor */
+		vpp_cycles += max(vpp_cycles / 20, fw_vpp_cycles);
+
+		vsp_cycles = mbs_per_second * inst->clk_data.entry->vsp_cycles;
+
+		/* 10 / 7 is overhead factor */
+		vsp_cycles += (inst->clk_data.bitrate * 10) / 7;
+	} else if (inst->session_type == MSM_VIDC_DECODER) {
+		vpp_cycles = mbs_per_second * inst->clk_data.entry->vpp_cycles;
+		/* 21 / 20 is minimum overhead factor */
+		vpp_cycles += max(vpp_cycles / 20, fw_vpp_cycles);
+
+		vsp_cycles = mbs_per_second * inst->clk_data.entry->vsp_cycles;
+		/* 10 / 7 is overhead factor */
+		vsp_cycles += div_u64((fps * filled_len * 8 * 10), 7);
+
+	} else {
+		s_vpr_e(inst->sid, "Unknown session type = %s\n", __func__);
+		return msm_vidc_max_freq(inst->core, inst->sid);
+	}
+
+	freq = max(vpp_cycles, vsp_cycles);
+	freq = max(freq, fw_cycles);
+
+	s_vpr_l(inst->sid, "Update DCVS Load\n");
+	allowed_clks_tbl = core->resources.allowed_clks_tbl;
+	for (i = core->resources.allowed_clks_tbl_size - 1; i >= 0; i--) {
+		rate = allowed_clks_tbl[i].clock_rate;
+		if (rate >= freq)
+			break;
+	}
+
+	s_vpr_p(inst->sid, "%s Inst %pK : Filled Len = %d Freq = %lu\n",
+		__func__, inst, filled_len, freq);
+
+	return freq;
+}
+
+
 static unsigned long msm_vidc_calc_freq_iris2(struct msm_vidc_inst *inst,
 	u32 filled_len)
 {
@@ -1298,6 +1386,82 @@ decision_done:
 	return rc;
 }
 
+static int msm_vidc_decide_work_mode_ar50(struct msm_vidc_inst *inst)
+{
+	int rc = 0;
+	struct hfi_device *hdev;
+	struct hfi_video_work_mode pdata;
+	struct hfi_enable latency;
+	struct v4l2_format *f;
+
+	if (!inst || !inst->core || !inst->core->device) {
+		s_vpr_e(inst->sid,
+			"%s Invalid args: Inst = %pK\n",
+			__func__, inst);
+		return -EINVAL;
+	}
+
+	hdev = inst->core->device;
+	if (inst->clk_data.low_latency_mode) {
+		pdata.video_work_mode = HFI_WORKMODE_1;
+		goto decision_done;
+	}
+
+    f = &inst->fmts[INPUT_PORT].v4l2_fmt;
+	if (inst->session_type == MSM_VIDC_DECODER) {
+		pdata.video_work_mode = HFI_WORKMODE_2;
+		switch (f->fmt.pix_mp.pixelformat) {
+		case V4L2_PIX_FMT_MPEG2:
+			pdata.video_work_mode = HFI_WORKMODE_1;
+			break;
+		case V4L2_PIX_FMT_H264:
+		case V4L2_PIX_FMT_HEVC:
+			if (f->fmt.pix_mp.height *
+				f->fmt.pix_mp.width <=
+					1280 * 720)
+				pdata.video_work_mode = HFI_WORKMODE_1;
+			break;
+		}
+	} else if (inst->session_type == MSM_VIDC_ENCODER) {
+		u32 rc_mode = 0;
+
+		pdata.video_work_mode = HFI_WORKMODE_1;
+		rc_mode =  msm_comm_g_ctrl_for_id(inst,
+				V4L2_CID_MPEG_VIDEO_BITRATE_MODE);
+		if (rc_mode == V4L2_MPEG_VIDEO_BITRATE_MODE_VBR ||
+		    rc_mode == V4L2_MPEG_VIDEO_BITRATE_MODE_MBR ||
+		    rc_mode == V4L2_MPEG_VIDEO_BITRATE_MODE_MBR_VFR)
+			pdata.video_work_mode = HFI_WORKMODE_2;
+	} else {
+		return -EINVAL;
+	}
+
+decision_done:
+	s_vpr_h(inst->sid, "Configuring work mode = %u low latency = %u",
+				pdata.video_work_mode, latency.enable);
+	inst->clk_data.work_mode = pdata.video_work_mode;
+	rc = call_hfi_op(hdev, session_set_property,
+			(void *)inst->session, HFI_PROPERTY_PARAM_WORK_MODE,
+			(void *)&pdata, sizeof(pdata));
+	if (rc)
+		s_vpr_e(inst->sid,
+				" Failed to configure Work Mode %pK\n", inst);
+
+	/* For WORK_MODE_1, set Low Latency mode by default to HW. */
+
+	if (inst->session_type == MSM_VIDC_ENCODER &&
+			inst->clk_data.work_mode == HFI_WORKMODE_1) {
+		latency.enable = 1;
+		rc = call_hfi_op(hdev, session_set_property,
+			(void *)inst->session, HFI_PROPERTY_PARAM_VENC_LOW_LATENCY_MODE,
+			(void *)&latency, sizeof(latency));
+	}
+
+	rc = msm_comm_scale_clocks_and_bus(inst, 1);
+
+	return rc;
+}
+
 int msm_vidc_set_bse_vpp_delay(struct msm_vidc_inst *inst)
 {
 	int rc = 0;
@@ -1508,6 +1672,8 @@ void msm_vidc_init_core_clk_ops(struct msm_vidc_core *core)
 
 	if (vpu == VPU_VERSION_AR50_LITE)
 		core->core_ops = &core_ops_ar50_lt;
+	else if(vpu == VPU_VERSION_AR50)
+		core->core_ops = &core_ops_ar50;
 	else
 		core->core_ops = &core_ops_iris2;
 }
