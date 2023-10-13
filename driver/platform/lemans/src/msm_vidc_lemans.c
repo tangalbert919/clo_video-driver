@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2020-2021, The Linux Foundation. All rights reserved.
- * Copyright (c) 2021-2022 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2021-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <dt-bindings/clock/qcom,gcc-lemans.h>
@@ -1726,7 +1726,7 @@ static struct msm_platform_inst_capability instance_cap_data_lemans[] = {
 		HFI_PROP_OPB_LUMA_CHROMA_MISR,
 		CAP_FLAG_BITMASK | CAP_FLAG_META},
 
-	{META_INTERLACE, DEC, H264,
+	{META_INTERLACE, DEC, H264|MPEG2,
 		MSM_VIDC_META_DISABLE,
 		MSM_VIDC_META_ENABLE | MSM_VIDC_META_RX_OUTPUT,
 		0, MSM_VIDC_META_DISABLE,
