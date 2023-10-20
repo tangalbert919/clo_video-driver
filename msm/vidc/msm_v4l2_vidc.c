@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2012-2021, The Linux Foundation. All rights reserved.
+ * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
 #include <linux/module.h>
@@ -608,7 +609,7 @@ static int msm_vidc_probe_vidc_device(struct platform_device *pdev)
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 	place_marker("M - DRIVER Video Ready");
 #endif
-	pr_info("boot-kpi: M - DRIVER Video Ready");
+	pr_err("boot_kpi: M - DRIVER Video Ready\n");
 
 	return rc;
 
@@ -832,14 +833,14 @@ static int msm_vidc_pm_freeze(struct device *dev)
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		place_marker("vidc hibernation start");
 #endif
-		pr_info("boot-kpi: vidc hibernation start");
+		pr_err("boot_kpi: vidc hibernation start\n");
 
 		rc = msm_vidc_freeze_core(core);
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
 		place_marker("vidc hibernation end");
 #endif
-		pr_info("boot-kpi: vidc hibernation end");
+		pr_err("boot_kpi: vidc hibernation end\n");
 	}
 	d_vpr_h("%s: done\n", __func__);
 
