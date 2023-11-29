@@ -16,6 +16,8 @@
 #include <linux/soc/qcom/msm_mmrm.h>
 #endif
 
+#include <soc/qcom/boot_stats.h>
+
 #include "msm_vidc_internal.h"
 #include "msm_vidc_debug.h"
 #include "msm_vidc_driver.h"
@@ -751,6 +753,11 @@ static int msm_vidc_probe_video_device(struct platform_device *pdev)
 		d_vpr_e("%s: component master add with match failed\n", __func__);
 		goto master_add_failed;
 	}
+
+	#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))
+            place_marker("M - DRIVER Video Ready");
+        #endif
+            pr_info("boot_kpi: M - DRIVER Video Ready\n");
 
 	d_vpr_h("%s(): succssful\n", __func__);
 
