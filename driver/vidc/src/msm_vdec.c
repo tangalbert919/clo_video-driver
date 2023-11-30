@@ -1007,7 +1007,7 @@ static int msm_vdec_subscribe_metadata(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
 	int rc = 0;
-	u32 payload[32] = {0};
+	u32 payload[INST_CAP_MAX] = {0};
 	u32 i, count = 0;
 	struct msm_vidc_inst_capability *capability;
 
@@ -1058,7 +1058,7 @@ static int msm_vdec_set_delivery_mode_metadata(struct msm_vidc_inst *inst,
 	enum msm_vidc_port_type port)
 {
 	int rc = 0;
-	u32 payload[32] = {0};
+	u32 payload[INST_CAP_MAX] = {0};
 	u32 i, count = 0;
 	struct msm_vidc_inst_capability *capability;
 
