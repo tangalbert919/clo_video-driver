@@ -125,7 +125,7 @@ static const char *const mpeg_video_stream_format[] = {
 static const char *const roi_map_type[] = {
 	"None",
 	"2-bit",
-	"2-bit",
+	"2-byte",
 };
 
 static struct msm_vidc_ctrl msm_venc_ctrls[] = {
