@@ -1012,7 +1012,11 @@ u32 msm_vidc_calculate_enc_output_frame_size(struct msm_vidc_inst *inst)
 
 	if (inst->core->platform_data->vpu_ver == VPU_VERSION_AR50)
 	{
-		frame_size = frame_size >>1;
+		if (mbs_per_frame <= NUM_MBS_360P) {
+			frame_size = frame_size << 1;
+		} else {
+			frame_size = frame_size >>1;
+		}
 	}
 	else
 	{
