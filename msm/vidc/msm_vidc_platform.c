@@ -2497,7 +2497,7 @@ static struct msm_vidc_common_data trinket_common_data[] = {
 	},
 	{
 		.key = "qcom,sw-power-collapse",
-		.value = 0,
+		.value = 1,
 	},
 	{
 		.key = "qcom,domain-attr-non-fatal-faults",
