@@ -304,7 +304,7 @@ static struct msm_vidc_ctrl msm_venc_ctrls[] = {
 		.type = V4L2_CTRL_TYPE_MENU,
 		.minimum = V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CAVLC,
 		.maximum = V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC,
-		.default_value = V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC,
+		.default_value = V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CAVLC,
 		.menu_skip_mask = ~(
 		(1 << V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CAVLC) |
 		(1 << V4L2_MPEG_VIDEO_H264_ENTROPY_MODE_CABAC)
@@ -868,7 +868,7 @@ static struct msm_vidc_ctrl msm_venc_ctrls[] = {
 		.type = V4L2_CTRL_TYPE_BOOLEAN,
 		.minimum = V4L2_MPEG_MSM_VIDC_DISABLE,
 		.maximum = V4L2_MPEG_MSM_VIDC_ENABLE,
-		.default_value = V4L2_MPEG_MSM_VIDC_ENABLE,
+		.default_value = V4L2_MPEG_MSM_VIDC_DISABLE,
 		.step = 1,
 	},
 	{
@@ -3293,7 +3293,7 @@ int msm_venc_set_entropy_mode(struct msm_vidc_inst *inst)
 		return 0;
 
 	entropy.entropy_mode = inst->entropy_mode;
-	entropy.cabac_model = HFI_H264_CABAC_MODEL_2;
+	entropy.cabac_model = HFI_H264_CABAC_MODEL_0;
 
 	s_vpr_h(inst->sid, "%s: %d\n", __func__, entropy.entropy_mode);
 	rc = call_hfi_op(hdev, session_set_property, inst->session,
