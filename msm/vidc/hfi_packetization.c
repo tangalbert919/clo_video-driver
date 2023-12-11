@@ -249,48 +249,36 @@ inline int create_pkt_cmd_sys_session_init(
 	return rc;
 }
 
-
 int create_pkt_cmd_sys_ubwc_config(
 		struct hfi_cmd_sys_set_property_packet *pkt,
 		struct msm_vidc_ubwc_config_data *ubwc_config)
 {
-	int rc = 0;
-	struct hfi_cmd_sys_set_ubwc_config_packet_type *hfi;
+	struct msm_vidc_ubwc_config_v1 {
+		struct {
+			u32 bMaxChannelsOverride : 1;
+			u32 bMalLengthOverride : 1;
+			u32 bHBBOverride : 1;
+			u32 reserved1 : 29;
+		} sOverrideBitInfo;
+
+		u32 nMaxChannels;
+		u32 nMalLength;
+		u32 nHighestBankBit;
+		u32 reserved2[2];
+	} hfi = {{0, 1, 0, 0}, 0, 64, 0, {0}};
 
 	if (!pkt)
 		return -EINVAL;
 
 	pkt->size = sizeof(struct hfi_cmd_sys_set_property_packet) +
-		sizeof(struct hfi_cmd_sys_set_ubwc_config_packet_type)
-		+ sizeof(u32);
+		sizeof(hfi) + sizeof(u32);
 
 	pkt->packet_type = HFI_CMD_SYS_SET_PROPERTY;
 	pkt->num_properties = 1;
 	pkt->rg_property_data[0] = HFI_PROPERTY_SYS_UBWC_CONFIG;
-	hfi = (struct hfi_cmd_sys_set_ubwc_config_packet_type *)
-		&pkt->rg_property_data[1];
 
-	hfi->max_channels = ubwc_config->max_channels;
-	hfi->override_bit_info.max_channel_override =
-		ubwc_config->override_bit_info.max_channel_override;
-
-	hfi->mal_length = ubwc_config->mal_length;
-	hfi->override_bit_info.mal_length_override =
-		ubwc_config->override_bit_info.mal_length_override;
-
-	hfi->highest_bank_bit = ubwc_config->highest_bank_bit;
-	hfi->override_bit_info.hb_override =
-		ubwc_config->override_bit_info.hb_override;
-
-	hfi->bank_swzl_level = ubwc_config->bank_swzl_level;
-	hfi->override_bit_info.bank_swzl_level_override =
-		ubwc_config->override_bit_info.bank_swzl_level_override;
-
-	hfi->bank_spreading = ubwc_config->bank_spreading;
-	hfi->override_bit_info.bank_spreading_override =
-		ubwc_config->override_bit_info.bank_spreading_override;
-
-	return rc;
+	memcpy(&pkt->rg_property_data[1], &(hfi), sizeof(hfi));
+	return 0;
 }
 
 int create_pkt_cmd_session_cmd(struct vidc_hal_session_cmd_pkt *pkt,
