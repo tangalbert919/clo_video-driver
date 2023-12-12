@@ -40,7 +40,7 @@ static struct msm_vidc_core_ops core_ops_ar50 = {
 	.decide_work_route = NULL,
 	.decide_work_mode = msm_vidc_decide_work_mode_ar50_lt,
 	.decide_core_and_power_mode =
-		msm_vidc_decide_core_and_power_mode_ar50lt,
+		msm_vidc_decide_core_and_power_mode_ar50,
 	.calc_bw = NULL,
 };
 static struct msm_vidc_core_ops core_ops_iris1 = {
@@ -1702,6 +1702,10 @@ static inline int msm_vidc_power_save_mode_enable(struct msm_vidc_inst *inst,
 	struct hfi_device *hdev = NULL;
 	u32 hfi_perf_mode;
 	struct v4l2_ctrl *ctrl;
+	u32 hq_mbs_per_sec = 0;
+	struct msm_vidc_core *core;
+	struct msm_vidc_inst *instance = NULL;
+	core = inst->core;
 
 	hdev = inst->core->device;
 	if (inst->session_type != MSM_VIDC_ENCODER) {
@@ -1710,6 +1714,16 @@ static inline int msm_vidc_power_save_mode_enable(struct msm_vidc_inst *inst,
 			__func__);
 		return 0;
 	}
+
+	mutex_lock(&core->lock);
+	list_for_each_entry(instance, &core->instances, list) {
+		if (instance->clk_data.core_id && !(instance->flags & VIDC_LOW_POWER))
+			hq_mbs_per_sec += msm_comm_get_inst_load_per_core(instance, LOAD_POWER);
+	}
+	mutex_unlock(&core->lock);
+
+	if (hq_mbs_per_sec > inst->core->resources.max_hq_mbs_per_sec)
+		enable = true;
 
 	ctrl = get_ctrl(inst, V4L2_CID_MPEG_VIDC_VENC_COMPLEXITY);
 	if (!is_realtime_session(inst) && !ctrl->val)
@@ -1796,6 +1810,80 @@ int msm_vidc_decide_core_and_power_mode_ar50lt(struct msm_vidc_inst *inst)
 {
 	inst->clk_data.core_id = VIDC_CORE_ID_1;
 	return 0;
+}
+
+int msm_vidc_decide_core_and_power_mode_ar50(struct msm_vidc_inst *inst)
+{
+	bool enable = false;
+	int rc = 0;
+	u32 core_load = 0, core_lp_load = 0;
+	u32 cur_inst_load = 0, cur_inst_lp_load = 0;
+	u32 mbpf, mbps, max_hq_mbpf, max_hq_mbps;
+	unsigned long max_freq, lp_cycles = 0;
+	struct msm_vidc_core *core;
+
+	if (!inst || !inst->core || !inst->core->device) {
+		d_vpr_e("%s: Invalid args: Inst = %pK\n",
+			__func__, inst);
+		return -EINVAL;
+	}
+	inst->clk_data.core_id = VIDC_CORE_ID_1;
+
+	core = inst->core;
+	max_freq = msm_vidc_max_freq(inst->core, inst->sid);
+
+	core_load = get_core_load(core, VIDC_CORE_ID_1, false, true);
+	core_lp_load = get_core_load(core, VIDC_CORE_ID_1, true, true);
+
+	lp_cycles = inst->session_type == MSM_VIDC_ENCODER ?
+			inst->clk_data.entry->low_power_cycles :
+			inst->clk_data.entry->vpp_cycles;
+
+	cur_inst_load = (msm_comm_get_inst_load(inst, LOAD_POWER) *
+	inst->clk_data.entry->vpp_cycles)/inst->clk_data.work_route;
+
+	cur_inst_lp_load = (msm_comm_get_inst_load(inst,
+		LOAD_POWER) * lp_cycles)/inst->clk_data.work_route;
+
+	mbpf = msm_vidc_get_mbs_per_frame(inst);
+	mbps = mbpf * msm_vidc_get_fps(inst);
+	max_hq_mbpf = core->resources.max_hq_mbs_per_frame;
+	max_hq_mbps = core->resources.max_hq_mbs_per_sec;
+
+	s_vpr_h(inst->sid, "Core RT Load = %d LP Load = %d\n",
+		 core_load, core_lp_load);
+	s_vpr_h(inst->sid, "Max Load = %lu\n", max_freq);
+	s_vpr_h(inst->sid, "Current Load = %d Current LP Load = %d\n",
+		cur_inst_load, cur_inst_lp_load);
+
+	if (inst->rc_type == V4L2_MPEG_VIDEO_BITRATE_MODE_CQ &&
+		(core_load > max_freq || core_lp_load > max_freq)) {
+		s_vpr_e(inst->sid,
+			"CQ session - Core cannot support this load\n");
+		return -EINVAL;
+	}
+
+	/* Power saving always disabled for HEIF image sessions */
+	if (is_image_session(inst))
+		msm_vidc_power_save_mode_enable(inst, false);
+	else if (cur_inst_load + core_load <= max_freq) {
+		if (mbpf > max_hq_mbpf || mbps > max_hq_mbps)
+			enable = true;
+		msm_vidc_power_save_mode_enable(inst, enable);
+	} else if (cur_inst_lp_load + core_load <= max_freq) {
+		msm_vidc_power_save_mode_enable(inst, true);
+	} else if (cur_inst_lp_load + core_lp_load <= max_freq) {
+		s_vpr_h(inst->sid, "Moved all inst's to LP");
+		msm_vidc_move_core_to_power_save_mode(core,
+			VIDC_CORE_ID_1, inst->sid);
+	} else {
+		s_vpr_e(inst->sid, "Core cannot support this load\n");
+		return -EINVAL;
+	}
+
+	rc = msm_comm_scale_clocks_and_bus(inst, 1);
+	msm_print_core_status(core, VIDC_CORE_ID_1, inst->sid);
+	return rc;
 }
 
 int msm_vidc_decide_core_and_power_mode_iris1(struct msm_vidc_inst *inst)
