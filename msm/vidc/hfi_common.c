@@ -10,6 +10,7 @@
 #include <linux/qcom_scm.h>
 #include <linux/soc/qcom/mdt_loader.h>
 
+#include "hfi_ar50.h"
 #include "hfi_common.h"
 
 #define FIRMWARE_SIZE			0X00A00000
@@ -2593,6 +2594,10 @@ static void venus_hfi_pm_handler(struct work_struct *work)
 static int __power_collapse(struct venus_hfi_device *device, bool force)
 {
 	int rc = 0;
+	u32 wfi_status = 0, idle_status = 0, pc_ready = 0;
+	int count = 0;
+	const int max_tries = 10;
+	u32 sid = DEFAULT_SID;
 
 	if (!device) {
 		d_vpr_e("%s: invalid params\n", __func__);
@@ -2611,6 +2616,39 @@ static int __power_collapse(struct venus_hfi_device *device, bool force)
 	rc = call_venus_op(device, prepare_pc, device);
 	if (rc)
 		goto skip_power_off;
+	pc_ready = __read_register(device, VIDC_CTRL_STATUS_AR50 & VIDC_CTRL_STATUS_PC_READY_AR50, sid);
+	if (!pc_ready) {
+		wfi_status = __read_register(device, VIDC_WRAPPER_CPU_STATUS_AR50, sid);
+		idle_status = __read_register(device, VIDC_CTRL_STATUS_AR50, sid);
+		if (!(wfi_status & BIT(0))) {
+			d_vpr_h("%s:Skipping PC as wfi_status (%#x) bit not set\n", __func__, wfi_status);
+			goto skip_power_off;
+		}
+		if (!(idle_status & BIT(30))) {
+			d_vpr_h("%s: Skipping PC as idle_status (%#x) bit not set\n", __func__, idle_status);
+			goto skip_power_off;
+		}
+		rc = __prepare_pc_ar50(device);
+		if (rc) {
+			d_vpr_h("%s:Failed PC %d\n", __func__, rc);
+			goto skip_power_off;
+		}
+		while (count < max_tries) {
+			wfi_status = __read_register(device,
+					VIDC_WRAPPER_CPU_STATUS_AR50, sid);
+			pc_ready = __read_register(device,
+					VIDC_CTRL_STATUS_AR50, sid);
+			if ((wfi_status & BIT(0)) && (pc_ready &
+				VIDC_CTRL_STATUS_PC_READY_AR50))
+				break;
+			usleep_range(150, 250);
+			count++;
+		}
+		if (count == max_tries) {
+			d_vpr_e("%s: Skip PC. Core is not in right state (%#x, %#x)\n", __func__, wfi_status, pc_ready);
+			goto skip_power_off;
+		}
+	}
 
 	__flush_debug_queue(device, device->raw_packet);
 
@@ -2622,6 +2660,8 @@ exit:
 	return rc;
 
 skip_power_off:
+	d_vpr_h("%s: Skip PC(%#x, %#x, %#x)\n",
+		__func__, wfi_status, idle_status, pc_ready);
 	return -EAGAIN;
 }
 
