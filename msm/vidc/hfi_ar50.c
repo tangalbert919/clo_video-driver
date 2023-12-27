@@ -3,7 +3,83 @@
  * Copyright (c) 2023 Qualcomm Innovation Center, Inc. All rights reserved.
  */
 
-#include "hfi_ar50.h"
+#include "hfi_common.h"
+#include "hfi_io_common.h"
+#include <linux/io.h>
+
+#define VIDC_VBIF_BASE_OFFS_AR50			0x00080000
+
+#define VIDC_CPU_BASE_OFFS_AR50			0x000C0000
+#define VIDC_CPU_CS_BASE_OFFS_AR50		(VIDC_CPU_BASE_OFFS_AR50 + 0x00012000)
+#define VIDC_CPU_IC_BASE_OFFS		(VIDC_CPU_BASE_OFFS_AR50 + 0x0001F000)
+
+#define VIDC_CPU_CS_A2HSOFTINTCLR_AR50	(VIDC_CPU_CS_BASE_OFFS_AR50 + 0x1C)
+#define VIDC_CPU_CS_SCIACMD_AR50			(VIDC_CPU_CS_BASE_OFFS_AR50 + 0x48)
+
+/* HFI_CTRL_STATUS */
+#define VIDC_CPU_CS_SCIACMDARG0_AR50		(VIDC_CPU_CS_BASE_OFFS_AR50 + 0x4C)
+#define VIDC_CPU_CS_SCIACMDARG0_HFI_CTRL_ERROR_STATUS_BMSK_AR50	0xfe
+#define VIDC_CPU_CS_SCIACMDARG0_HFI_CTRL_PC_READY_AR50           0x100
+#define VIDC_CPU_CS_SCIACMDARG0_HFI_CTRL_INIT_IDLE_MSG_BMSK_AR50     0x40000000
+
+/* HFI_QTBL_INFO */
+#define VIDC_CPU_CS_SCIACMDARG1_AR50		(VIDC_CPU_CS_BASE_OFFS_AR50 + 0x50)
+
+/* HFI_QTBL_ADDR */
+#define VIDC_CPU_CS_SCIACMDARG2_AR50		(VIDC_CPU_CS_BASE_OFFS_AR50 + 0x54)
+
+/* HFI_VERSION_INFO */
+#define VIDC_CPU_CS_SCIACMDARG3_AR50		(VIDC_CPU_CS_BASE_OFFS_AR50 + 0x58)
+
+/* VIDC_SFR_ADDR */
+#define VIDC_CPU_CS_SCIBCMD_AR50		(VIDC_CPU_CS_BASE_OFFS_AR50 + 0x5C)
+
+/* VIDC_MMAP_ADDR */
+#define VIDC_CPU_CS_SCIBCMDARG0_AR50		(VIDC_CPU_CS_BASE_OFFS_AR50 + 0x60)
+
+/* VIDC_UC_REGION_ADDR */
+#define VIDC_CPU_CS_SCIBARG1_AR50		(VIDC_CPU_CS_BASE_OFFS_AR50 + 0x64)
+
+/* VIDC_UC_REGION_ADDR */
+#define VIDC_CPU_CS_SCIBARG2_AR50		(VIDC_CPU_CS_BASE_OFFS_AR50 + 0x68)
+
+#define VIDC_CPU_IC_SOFTINT_AR50	(VIDC_CPU_IC_BASE_OFFS + 0x18)
+#define VIDC_CPU_IC_SOFTINT_H2A_SHFT_AR50	0xF
+
+/*
+ * --------------------------------------------------------------------------
+ * MODULE: vidc_wrapper
+ * --------------------------------------------------------------------------
+ */
+#define VIDC_WRAPPER_BASE_OFFS_AR50		0x000E0000
+
+#define VIDC_WRAPPER_HW_VERSION_AR50		(VIDC_WRAPPER_BASE_OFFS_AR50 + 0x00)
+
+#define VIDC_WRAPPER_INTR_STATUS_AR50	(VIDC_WRAPPER_BASE_OFFS_AR50 + 0x0C)
+#define VIDC_WRAPPER_INTR_STATUS_A2HWD_BMSK_AR50	0x10
+#define VIDC_WRAPPER_INTR_STATUS_A2H_BMSK_AR50	0x4
+
+#define VIDC_WRAPPER_INTR_CLEAR_AR50		(VIDC_WRAPPER_BASE_OFFS_AR50 + 0x14)
+#define VIDC_WRAPPER_CPU_STATUS_AR50 (VIDC_WRAPPER_BASE_OFFS_AR50 + 0x2014)
+
+#define VIDC_CTRL_INIT_AR50		VIDC_CPU_CS_SCIACMD_AR50
+
+#define VIDC_CTRL_STATUS_AR50	VIDC_CPU_CS_SCIACMDARG0_AR50
+#define VIDC_CTRL_ERROR_STATUS__M_AR50 \
+		VIDC_CPU_CS_SCIACMDARG0_HFI_CTRL_ERROR_STATUS_BMSK_AR50
+#define VIDC_CTRL_INIT_IDLE_MSG_BMSK_AR50 \
+		VIDC_CPU_CS_SCIACMDARG0_HFI_CTRL_INIT_IDLE_MSG_BMSK_AR50
+#define VIDC_CTRL_STATUS_PC_READY_AR50 \
+		VIDC_CPU_CS_SCIACMDARG0_HFI_CTRL_PC_READY_AR50
+
+#define VIDC_QTBL_INFO_AR50		VIDC_CPU_CS_SCIACMDARG1_AR50
+
+#define VIDC_QTBL_ADDR_AR50		VIDC_CPU_CS_SCIACMDARG2_AR50
+
+#define VIDC_SFR_ADDR_AR50		VIDC_CPU_CS_SCIBCMD_AR50
+#define VIDC_MMAP_ADDR_AR50		VIDC_CPU_CS_SCIBCMDARG0_AR50
+#define VIDC_UC_REGION_ADDR_AR50	VIDC_CPU_CS_SCIBARG1_AR50
+#define VIDC_UC_REGION_SIZE_AR50	VIDC_CPU_CS_SCIBARG2_AR50
 
 /*
  * --------------------------------------------------------------------------
@@ -128,20 +204,58 @@ int __reset_ahb2axi_bridge_ar50(struct venus_hfi_device *device,
 int __prepare_pc_ar50(struct venus_hfi_device *device)
 {
 	int rc = 0;
-	struct hfi_cmd_sys_pc_prep_packet pkt;
+	u32 wfi_status = 0, idle_status = 0, pc_ready = 0;
+	u32 ctrl_status = 0;
+	int count = 0;
+	const int max_tries = 10;
+	u32 sid = DEFAULT_SID;
 
-	rc = call_hfi_pkt_op(device, sys_pc_prep, &pkt);
-	if (rc) {
-		d_vpr_e("Failed to create sys pc prep pkt\n");
-		goto err_pc_prep;
+	ctrl_status = __read_register(device, VIDC_CTRL_STATUS_AR50, sid);
+	pc_ready = ctrl_status & VIDC_CTRL_STATUS_PC_READY_AR50;
+	idle_status = ctrl_status & BIT(30);
+
+	if (pc_ready) {
+		d_vpr_h("Already in pc_ready state\n");
+		return 0;
 	}
 
-	if (__iface_cmdq_write(device, &pkt, DEFAULT_SID))
-		rc = -ENOTEMPTY;
-	if (rc)
-		d_vpr_e("Failed to prepare venus for power off");
-err_pc_prep:
+	wfi_status = BIT(0) & __read_register(device, VIDC_WRAPPER_CPU_STATUS_AR50, sid);
+
+	if (!wfi_status || !idle_status) {
+		d_vpr_e("Skipping PC, wfi status (0x%x), idle_status (0x%x)",
+			wfi_status, idle_status);
+		goto skip_power_off;
+	}
+
+	rc = __prepare_pc(device);
+	if (rc) {
+		d_vpr_e("%s:Failed PC %d\n", __func__, rc);
+		goto skip_power_off;
+	}
+
+	while (count < max_tries) {
+		wfi_status = BIT(0) &
+			__read_register(device, VIDC_WRAPPER_CPU_STATUS_AR50, sid);
+		ctrl_status = __read_register(device, VIDC_CTRL_STATUS_AR50, sid);
+		pc_ready = ctrl_status & VIDC_CTRL_STATUS_PC_READY_AR50;
+		if (wfi_status && pc_ready)
+			break;
+		usleep_range(150, 250);
+		count++;
+	}
+
+	if (count == max_tries) {
+		d_vpr_e("%s: Skip PC. Core is not in right state (%#x, %#x)\n",
+			__func__, wfi_status, pc_ready);
+		goto skip_power_off;
+	}
+
 	return rc;
+
+skip_power_off:
+	d_vpr_e("Skip PC, wfi=%#x, idle=%#x, pcr=%#x, ctrl=%#x)\n",
+		wfi_status, idle_status, pc_ready, ctrl_status);
+	return -EAGAIN;
 }
 
 void __noc_error_info_ar50(struct venus_hfi_device *device)
