@@ -824,7 +824,7 @@ static int msm_vidc_pm_suspend(struct device *dev)
 {
 	int rc = 0;
 	struct msm_vidc_core *core;
-	bool allow = false;
+	enum msm_vidc_allow allow = MSM_VIDC_DISALLOW;
 
 	/*
 	 * Bail out if
@@ -843,14 +843,27 @@ static int msm_vidc_pm_suspend(struct device *dev)
 
 	core_lock(core, __func__);
 	allow = msm_vidc_allow_pm_suspend(core);
-	if (!allow) {
-		d_vpr_e("%s: pm suspend not allowed\n", __func__);
+
+	if (allow == MSM_VIDC_IGNORE) {
+		d_vpr_h("%s: pm already suspended\n", __func__);
+		msm_vidc_change_core_sub_state(core, 0, CORE_SUBSTATE_PM_SUSPEND, __func__);
+		rc = 0;
+		goto unlock;
+	} else if (allow != MSM_VIDC_ALLOW) {
+		d_vpr_h("%s: pm suspend not allowed\n", __func__);
 		rc = 0;
 		goto unlock;
 	}
 
 	d_vpr_h("%s\n", __func__);
+#ifdef CONFIG_DEEPSLEEP
+	if (pm_suspend_via_firmware()) {
+		d_vpr_h("Triggered deepsleep via : %s\n", __func__);
+		msm_vidc_schedule_core_deinit(core);
+	}
+#else
 	rc = msm_vidc_suspend_locked(core);
+#endif
 	if (rc == -ENOTSUPP)
 		rc = 0;
 	else if (rc)
@@ -883,7 +896,11 @@ static int msm_vidc_pm_resume(struct device *dev)
 	}
 
 	d_vpr_h("%s\n", __func__);
-
+#ifdef CONFIG_DEEPSLEEP
+	if (pm_suspend_via_firmware()) {
+		d_vpr_h("Resuming from deepsleep via : %s\n", __func__);
+	}
+#endif
 	/* remove PM suspend from core sub_state */
 	core_lock(core, __func__);
 	msm_vidc_change_core_sub_state(core, CORE_SUBSTATE_PM_SUSPEND, 0, __func__);
